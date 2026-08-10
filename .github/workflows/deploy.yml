@@ -48,6 +48,36 @@ jobs:
               .catch(e => { console.error(e); process.exit(1); });
           "
 
+      # ตรวจ secret ก่อน deploy — ถ้าไม่มี wrangler จะฟ้องแบบกำกวมว่า "non-interactive
+      # environment" ซึ่งอ่านแล้วนึกว่าเป็นปัญหา environment ทั้งที่จริงคือ secret ว่าง
+      # ขั้นนี้บอกตรงๆ ว่าตัวไหนหาย (ไม่ print ค่า secret ออกมา แค่บอกว่ามี/ไม่มี)
+      - name: ตรวจว่าตั้ง GitHub Secrets ครบ
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          fail=0
+          if [ -z "$TOKEN" ]; then
+            echo "::error::ไม่พบ secret 'CLOUDFLARE_API_TOKEN'"
+            fail=1
+          else
+            echo "CLOUDFLARE_API_TOKEN  : พบแล้ว (ยาว ${#TOKEN} ตัวอักษร)"
+          fi
+          if [ -z "$ACCOUNT" ]; then
+            echo "::error::ไม่พบ secret 'CLOUDFLARE_ACCOUNT_ID'"
+            fail=1
+          else
+            echo "CLOUDFLARE_ACCOUNT_ID : พบแล้ว (ยาว ${#ACCOUNT} ตัวอักษร)"
+          fi
+          if [ $fail -eq 1 ]; then
+            echo ""
+            echo "ตั้งที่: Settings > Secrets and variables > Actions"
+            echo "  - ต้องอยู่แท็บ 'Secrets' ไม่ใช่ 'Variables'"
+            echo "  - ต้องอยู่หัวข้อ 'Repository secrets' ไม่ใช่ 'Environment secrets'"
+            echo "  - ชื่อต้องตรงเป๊ะ ตัวพิมพ์ใหญ่ทั้งหมด ไม่มีช่องว่างหน้า/หลัง"
+            exit 1
+          fi
+
       # เรียก wrangler ตรงๆ ไม่ผ่าน cloudflare/wrangler-action
       # เหตุผล: action ตัวนั้นลง wrangler เวอร์ชันของมันเองทับ (พบจริง: ลง 3.90.0
       # ทั้งที่ package-lock ล็อกไว้ 4.110.0) ทำให้ deploy พังโดยที่รันในเครื่องผ่าน
