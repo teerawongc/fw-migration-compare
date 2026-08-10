@@ -1,0 +1,4 @@
+name = "fw-migration-compare"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+account_id = "cf34a593c026515a94dbd632be682d97"

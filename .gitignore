@@ -1,0 +1,37 @@
+node_modules/
+.wrangler/
+
+# ── ห้าม commit เด็ดขาด ──────────────────────────────────────────────────────
+.dev.vars          # รหัสผ่านสำหรับ wrangler dev
+.dev.vars.*
+!.dev.vars.example
+*.env
+.env*
+!.env.example
+
+# ── ข้อมูลลูกค้า/ไฟล์ export จริงจากไฟร์วอลล์ ─────────────────────────────────
+# ไฟล์พวกนี้มี IP, ชื่อ object, policy ทั้งองค์กร — ห้ามขึ้น GitHub แม้ repo เป็น private
+*.xml
+*.rar
+*.zip
+fmc_*.json
+bulk_*.json
+compare_*.csv
+exports/
+data/
+
+# ── build artifact ──────────────────────────────────────────────────────────
+# src/index.js สร้างจาก build.py — CI สร้างเองตอน deploy จึงไม่ต้อง commit
+src/index.js
+
+# ── ไฟล์สำรองเก่า ────────────────────────────────────────────────────────────
+# git คือ backup อยู่แล้ว การเก็บไฟล์ " - Copy" ไว้เสี่ยงแก้ผิดตัว
+* - Copy.*
+*.bak
+*.old
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

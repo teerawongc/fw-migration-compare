@@ -1,0 +1,55 @@
+name: Deploy to Cloudflare Workers
+
+# push ขึ้น main → build + deploy อัตโนมัติ
+# workflow_dispatch = กด Run เองได้จากแท็บ Actions โดยไม่ต้อง commit ใหม่
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+# กัน deploy ชนกันเมื่อ push ติดๆ กัน — งานเก่าที่ยังค้างจะถูกยกเลิก
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: ติดตั้ง dependencies
+        run: npm ci
+
+      # build.py แปลง fw_policy_compare.html เป็น src/index.js
+      # (src/index.js ไม่ได้ commit ไว้ — สร้างใหม่ทุกครั้งเพื่อไม่ให้ HTML กับ worker หลุด sync)
+      - name: Build worker จาก HTML
+        run: python build.py
+
+      # ตรวจว่า JS ที่ฝังใน HTML ไม่มี syntax error ก่อน deploy
+      # (ถ้าพังแล้วปล่อยขึ้น production ผู้ใช้จะเจอหน้าเปล่า ไม่มี error ให้เห็น)
+      - name: ตรวจ syntax
+        run: |
+          node --input-type=module -e "
+            import('./src/index.js').then(() => console.log('worker syntax OK'))
+              .catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

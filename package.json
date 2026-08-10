@@ -1,0 +1,13 @@
+{
+  "name": "fw-migration-compare",
+  "version": "1.0.0",
+  "description": "FW Migration Comparator — CP vs FMC",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.110.0"
+  }
+}

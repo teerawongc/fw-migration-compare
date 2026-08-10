@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FW Migration Comparator v3.6.2</title>
+<style>
+/* ── Variables ── */
+:root {
+  --bg:#0b0f18; --bg2:#111827; --bg3:#1a2235; --bd:#1e2d45;
+  --txt:#e2e8f0; --muted:#64748b;
+  --ok:#10b981; --warn:#f59e0b; --err:#ef4444;
+  --fmc:#3b82f6; --cp:#e53e3e;
+}
+body.light {
+  --bg:#f1f5f9; --bg2:#ffffff; --bg3:#e8eef5; --bd:#c8d5e3;
+  --txt:#0f172a; --muted:#64748b;
+  --ok:#059669; --warn:#d97706; --err:#dc2626;
+  --fmc:#2563eb; --cp:#dc2626;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Layout ── */
+body {
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--txt);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+#hdr {
+  flex-shrink: 0;
+  background: #0d1829;
+  border-bottom: 1px solid var(--bd);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+  position: relative;
+}
+body.light #hdr { background: #1a3a6e; }
+.badge { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 3px; }
+.bcp  { background: var(--cp);  color: #fff; }
+.bfmc { background: var(--fmc); color: #fff; }
+#hdr h1 { font-size: 14px; font-weight: 700; color: #fff; }
+#ver { font-size: 9px; font-family: monospace; background: #1a2235; border: 1px solid #2d4060; color: #64748b; padding: 2px 7px; border-radius: 3px; }
+#hdr-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.hstat { font-size: 10px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 3px; padding: 2px 8px; color: var(--muted); }
+.hstat b { color: var(--txt); }
+
+/* ── Toggle buttons ── */
+.toggle-btn {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--bg3); border: 1px solid var(--bd);
+  border-radius: 20px; padding: 4px 12px;
+  cursor: pointer; font-size: 11px; color: var(--txt);
+  transition: .15s; user-select: none;
+}
+.toggle-btn:hover { border-color: var(--fmc); }
+
+/* ── Section tabs ── */
+#secbar {
+  flex-shrink: 0;
+  display: flex;
+  background: #080d16;
+  border-bottom: 2px solid var(--bd);
+  z-index: 100;
+  position: relative;
+}
+body.light #secbar { background: #1a3a6e; }
+.stab {
+  padding: 9px 18px;
+  font-size: 11px; font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  display: flex; align-items: center; gap: 5px;
+  transition: .15s; user-select: none; white-space: nowrap;
+}
+.stab:hover { color: var(--txt); background: var(--bg3); }
+.stab.active { color: #fff; border-bottom-color: var(--fmc); background: var(--bg2); }
+body.light .stab.active { background: #fff; color: #1e3a5f; border-bottom-color: #2563eb; }
+.stab-cnt {
+  font-size: 9px; padding: 1px 5px; border-radius: 8px;
+  background: var(--bg3); color: var(--muted);
+}
+.stab.active .stab-cnt { background: #1e3a5f; color: var(--fmc); }
+.stab-cnt.red { background: #7f1d1d !important; color: #fca5a5 !important; }
+.stab-cnt.yel { background: #78350f !important; color: #fcd34d !important; }
+
+/* ── Main body ── */
+#main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Left panel ── */
+#lpanel {
+  width: 290px;
+  flex-shrink: 0;
+  background: var(--bg2);
+  border-right: 1px solid var(--bd);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.lsec { padding: 10px 12px 8px; }
+.lsec + .lsec { border-top: 1px solid var(--bd); }
+.ltitle {
+  font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--muted); margin-bottom: 8px;
+}
+
+/* ── Upload zones ── */
+.uzone {
+  border: 2px dashed var(--bd);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: .2s;
+  margin-bottom: 6px;
+  user-select: none;
+}
+.uzone:hover { border-color: #4a80c4; background: #071020; }
+.uzone.loaded { border-style: solid; border-color: var(--ok); background: #022c22; }
+.uzone.errored { border-style: solid; border-color: var(--err); background: #1a0505; }
+.uz-icon { font-size: 18px; margin-bottom: 2px; }
+.uz-name { font-size: 11px; font-weight: 600; color: var(--txt); }
+.uz-hint { font-size: 9px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.uz-status { font-size: 9px; margin-top: 4px; min-height: 11px; }
+.uz-status.ok  { color: var(--ok); }
+.uz-status.err { color: var(--err); }
+
+/* ── FMC drop area ── */
+#fmc-drop {
+  border: 2px dashed var(--bd);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+  transition: .2s;
+  margin-top: 5px;
+}
+#fmc-drop.dragover { border-color: #4a80c4; background: #071020; }
+#fmc-drop-icon  { font-size: 20px; margin-bottom: 4px; }
+#fmc-drop-text  { font-size: 10px; color: var(--muted); line-height: 1.6; }
+#fmc-pick-btn {
+  margin-top: 8px;
+  background: #1e3a5f; color: #93c5fd;
+  border: 1px solid #2d5a8a; border-radius: 4px;
+  padding: 4px 12px; font-size: 10px; font-weight: 700;
+  cursor: pointer; display: inline-block;
+}
+#fmc-pick-btn:hover { background: #2a4e7a; }
+#fmc-files { margin-top: 5px; display: flex; flex-direction: column; gap: 3px; }
+.ffile-row {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--bg3); border: 1px solid var(--bd);
+  border-radius: 4px; padding: 3px 7px; font-size: 10px;
+}
+.ffile-cnt { font-size: 9px; background: #064e3b; color: #6ee7b7; padding: 1px 4px; border-radius: 2px; font-weight: 700; flex-shrink: 0; }
+.ffile-name { color: var(--txt); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ffile-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; flex-shrink: 0; }
+.ffile-del:hover { color: var(--err); }
+#fmc-footer { display: flex; gap: 4px; margin-top: 5px; }
+#fmc-clear-btn {
+  flex: 1; background: #7f1d1d; color: #fca5a5;
+  border: none; border-radius: 4px; padding: 4px; font-size: 9px; font-weight: 700; cursor: pointer;
+}
+#fmc-clear-btn:hover { background: #991b1b; }
+#fmc-badge {
+  flex: 1; background: var(--bg3); border: 1px solid var(--bd);
+  color: var(--muted); font-size: 9px; padding: 4px;
+  border-radius: 4px; text-align: center;
+}
+#fmc-badge.has-data { color: var(--ok); border-color: var(--ok); }
+
+/* ── Paste area ── */
+#fmc-paste {
+  width: 100%; min-height: 70px;
+  background: var(--bg); border: 1px solid var(--bd);
+  color: var(--txt); padding: 7px;
+  border-radius: 5px; font-family: monospace; font-size: 10px;
+  resize: vertical; line-height: 1.5;
+}
+#fmc-paste:focus { outline: none; border-color: var(--fmc); }
+
+/* ── Options ── */
+.opt-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); cursor: pointer; margin-bottom: 4px; user-select: none; }
+.opt-row input { accent-color: var(--fmc); cursor: pointer; }
+
+/* ── Run button ── */
+#btn-run {
+  margin: 8px 12px 10px;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  color: #fff; border: none; border-radius: 5px;
+  padding: 9px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: .15s; width: calc(100% - 24px);
+}
+#btn-run:hover:not(:disabled) { filter: brightness(1.1); }
+#btn-run:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── Right panel ── */
+#rpanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Summary ── */
+#summary {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bd);
+}
+.scard { background: var(--bg); border: 1px solid var(--bd); border-radius: 6px; padding: 8px 10px; }
+.scard-num { font-size: 22px; font-weight: 800; font-family: monospace; line-height: 1; }
+.scard-lbl { font-size: 9px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+.scard.ok  .scard-num { color: var(--ok); }
+.scard.err .scard-num { color: var(--err); }
+.scard.wa  .scard-num { color: var(--warn); }
+.scard.in  .scard-num { color: var(--fmc); }
+.scard.pu  .scard-num { color: #a78bfa; }
+.scard.or  .scard-num { color: #f472b6; }
+
+/* ── Result tabs ── */
+#rtabs {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bd);
+  padding: 0 14px;
+}
+.rtab {
+  padding: 8px 12px; font-size: 11px; font-weight: 600;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: .15s; user-select: none; white-space: nowrap;
+}
+.rtab:hover { color: var(--txt); }
+.rtab.active { color: var(--fmc); border-bottom-color: var(--fmc); }
+.rtab-cnt { font-size: 9px; background: var(--bg3); padding: 1px 5px; border-radius: 3px; margin-left: 3px; }
+.rtab.active .rtab-cnt { background: #1e3a5f; color: var(--fmc); }
+
+/* ── Table area ── */
+#tblarea { flex: 1; overflow: auto; }
+#toolbar {
+  display: flex; gap: 7px; padding: 7px 14px;
+  background: var(--bg); border-bottom: 1px solid var(--bd);
+  align-items: center; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 5;
+}
+#search {
+  background: var(--bg2); border: 1px solid var(--bd);
+  color: var(--txt); padding: 4px 8px;
+  border-radius: 4px; font-size: 11px; width: 185px;
+}
+#search:focus { outline: none; border-color: var(--fmc); }
+#tcnt { font-size: 10px; color: var(--muted); }
+.tbtn {
+  border: none; padding: 4px 10px; border-radius: 3px;
+  font-size: 10px; font-weight: 700; cursor: pointer; transition: .15s;
+}
+.tbtn:disabled { opacity: .35; cursor: not-allowed; }
+.tbtn-csv  { background: #064e3b; color: #6ee7b7; }
+.tbtn-json { background: #1e3a5f; color: #93c5fd; }
+.tbtn-miss { background: #064e3b; color: #6ee7b7; }
+
+/* ── Table ── */
+#result-table { width: 100%; border-collapse: collapse; }
+#result-table thead th {
+  background: #080d16; color: var(--muted);
+  padding: 5px 9px; font-size: 9px;
+  text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+  text-align: left; position: sticky; top: 37px; z-index: 4;
+  border-bottom: 1px solid var(--bd); white-space: nowrap;
+}
+body.light #result-table thead th { background: #dde5f0; }
+#result-table tbody tr { border-bottom: 1px solid var(--bd); cursor: pointer; transition: background .1s; }
+#result-table tbody tr:hover { background: var(--bg3); }
+#result-table td { padding: 5px 9px; font-size: 11px; vertical-align: top; }
+
+/* ── Status badges ── */
+.stbadge { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 3px; white-space: nowrap; }
+.st-ok   { background: #064e3b; color: #6ee7b7; }
+.st-miss { background: #7f1d1d; color: #fca5a5; }
+.st-mm   { background: #78350f; color: #fcd34d; }
+.st-ex   { background: #1e1b4b; color: #a5b4fc; }
+.st-skip { background: #1e1e2e; color: #6b7280; }
+.st-ord  { background: #500724; color: #f9a8d4; }
+.st-splt { background: #0c4a6e; color: #7dd3fc; }
+
+.pill {
+  display: inline-block; font-size: 9px;
+  background: var(--bg3); border: 1px solid var(--bd);
+  border-radius: 2px; padding: 1px 4px; color: #94a3b8;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: middle; margin: 1px;
+}
+.pill-any  { color: #f59e0b !important; }
+.pill-diff { background: #451a03 !important; border-color: #92400e !important; color: #fcd34d !important; }
+.pill-missing { background: #450a0a !important; border-color: #b91c1c !important; color: #fca5a5 !important; font-weight: 700; }
+
+.act-accept, .act-allow, .act-permit { color: #6ee7b7; font-weight: 700; }
+.act-drop,   .act-deny,  .act-block  { color: #fca5a5; font-weight: 700; }
+
+/* ── Detail row ── */
+.detail-row td { padding: 0 !important; }
+.det-inner {
+  background: #0d1829; border-top: 2px solid var(--fmc);
+  padding: 10px 14px; display: grid;
+  grid-template-columns: 1fr 1fr; gap: 12px;
+}
+body.light .det-inner { background: #e8f0ff; border-top-color: #2563eb; }
+.det-hdr { grid-column: 1/-1; display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--bd); }
+.det-field { display: flex; gap: 6px; font-size: 10px; margin-bottom: 3px; padding-bottom: 3px; border-bottom: 1px solid #0f1e38; }
+.det-key { color: var(--muted); width: 75px; flex-shrink: 0; }
+.det-val { color: var(--txt); font-family: monospace; font-size: 10px; word-break: break-all; }
+.det-val.diff { color: var(--warn); }
+
+/* ── Placeholder ── */
+#placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; color: var(--muted); gap: 8px; }
+#placeholder .icon { font-size: 44px; opacity: .2; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #2d3f5e; border-radius: 3px; }
+body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
+
+/* ── Help modal ── */
+#help-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.6);
+  align-items: center; justify-content: center;
+}
+#help-overlay.open { display: flex; }
+#help-modal {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 8px;
+  width: min(720px, 92vw); max-height: 86vh; overflow-y: auto;
+  padding: 0; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+#help-hdr {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg2); border-bottom: 1px solid var(--bd);
+  padding: 14px 18px;
+}
+#help-hdr h2 { font-size: 15px; }
+#help-close {
+  background: var(--bg3); border: 1px solid var(--bd); color: var(--txt);
+  border-radius: 5px; width: 26px; height: 26px; cursor: pointer; font-size: 13px;
+}
+#help-close:hover { border-color: var(--err); color: var(--err); }
+#help-body { padding: 16px 18px 22px; font-size: 12px; line-height: 1.7; color: var(--txt); }
+#help-body h3 { font-size: 12px; color: var(--fmc); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+#help-body h3:first-child { margin-top: 0; }
+#help-body ol, #help-body ul { margin: 0 0 10px 20px; }
+#help-body li { margin-bottom: 6px; }
+#help-body code {
+  background: var(--bg); border: 1px solid var(--bd); border-radius: 3px;
+  padding: 1px 5px; font-family: monospace; font-size: 11px; color: #93c5fd;
+}
+#help-body pre {
+  background: var(--bg); border: 1px solid var(--bd); border-radius: 5px;
+  padding: 8px 10px; font-family: monospace; font-size: 10.5px; color: #93c5fd;
+  overflow-x: auto; margin-bottom: 10px; line-height: 1.5;
+}
+#help-body .warn-box {
+  background: #2a1a05; border: 1px solid #78350f; color: #fcd34d;
+  border-radius: 5px; padding: 8px 10px; font-size: 11px; margin-bottom: 10px;
+}
+#help-btn {
+  background: var(--bg3); border: 1px solid var(--bd); border-radius: 20px;
+  width: 26px; height: 26px; padding: 0; font-size: 13px; color: var(--txt); cursor: pointer;
+}
+#help-btn:hover { border-color: var(--fmc); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="hdr">
+  <span class="badge bcp">CHECK POINT</span>
+  <span style="color:#4a5568;font-size:14px">→</span>
+  <span class="badge bfmc">CISCO FMC</span>
+  <h1>Migration Comparator</h1>
+  <span id="ver">v3.6.2</span>
+  <div id="hdr-right">
+    <div class="hstat">Policy: <b id="h-policy">—</b></div>
+    <div class="hstat">NAT: <b id="h-nat">—</b></div>
+    <div class="hstat">Objects: <b id="h-obj">—</b></div>
+    <div class="hstat">Services: <b id="h-svc">—</b></div>
+    <button class="toggle-btn" id="dir-btn" onclick="toggleDir()">
+      <span id="dir-a" style="color:var(--cp);font-weight:800">CP</span>
+      <span style="color:var(--fmc)">→</span>
+      <span id="dir-b" style="color:var(--fmc);font-weight:800">FMC</span>
+      <span style="color:var(--muted);font-size:9px">⇄</span>
+    </button>
+    <button class="toggle-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
+    <button id="help-btn" onclick="toggleHelp(true)" title="วิธีใช้งาน">❓</button>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div id="help-overlay" onclick="if(event.target===this) toggleHelp(false)">
+  <div id="help-modal">
+    <div id="help-hdr">
+      <h2>📖 วิธีใช้งาน FW Migration Comparator</h2>
+      <button id="help-close" onclick="toggleHelp(false)">✕</button>
+    </div>
+    <div id="help-body">
+
+      <h3>ภาพรวม</h3>
+      <p>เครื่องมือนี้เปรียบเทียบ Policy / NAT / Network Objects / Service Objects ระหว่าง <b style="color:var(--cp)">Check Point</b> (ต้นทาง) กับ <b style="color:var(--fmc)">Cisco FMC</b> (ปลายทาง) เพื่อหาว่ามีอะไร Match, Missing, Mismatch หรือ Extra บ้าง ก่อน/หลัง migrate</p>
+
+      <h3>① Export จาก Check Point (ฝั่งซ้าย)</h3>
+      <p>เข้า SmartConsole แล้ว export แต่ละไฟล์ตาม tab ด้านบน:</p>
+      <ul>
+        <li><b>Security_Policy.xml</b> — File → Export Policy</li>
+        <li><b>NAT_Policy.xml</b> — NAT → Export</li>
+        <li><b>network_objects.xml</b> — Manage Objects → Export</li>
+        <li><b>services.xml</b> — Manage Services → Export</li>
+      </ul>
+      <p>คลิกที่กล่องแต่ละอันในแถบซ้าย (หรือลากไฟล์มาวาง) เพื่ออัปโหลด</p>
+
+      <h3>② Export จาก Cisco FMC (ฝั่งขวา)</h3>
+      <p>ดึงผ่าน FMC REST API — ทุก endpoint ต้องใส่ <code>?expanded=true</code> เสมอ แล้วนำไฟล์ JSON ที่ได้มาลากวาง หรือกด "เลือกไฟล์" (อัปโหลดได้หลายไฟล์พร้อมกัน ระบบจะ merge ให้อัตโนมัติ) หรือ paste JSON ลงกล่องข้อความก็ได้</p>
+
+      <p style="margin-top:10px"><b>Security Policy</b> (แบ่งหน้าละ 1000 รายการ):</p>
+      <pre>GET /policy/accesspolicies/{id}/accessrules?expanded=true&limit=1000&offset=0
+GET /policy/accesspolicies/{id}/accessrules?expanded=true&limit=1000&offset=1000
+GET /policy/accesspolicies/{id}/accessrules?expanded=true&limit=1000&offset=2000 ...</pre>
+
+      <p><b>NAT Policy:</b></p>
+      <pre>GET /policy/ftdnatpolicies/{id}/manualnatrules?expanded=true&limit=1000
+GET /policy/ftdnatpolicies/{id}/autonatrules?expanded=true&limit=1000</pre>
+
+      <p><b>Network Objects:</b></p>
+      <pre>GET /object/hosts?expanded=true&limit=1000&offset=0  (วนจน offset ครบ)
+GET /object/networks?expanded=true&limit=1000
+GET /object/ranges?expanded=true&limit=1000
+GET /object/networkgroups?expanded=true&limit=1000</pre>
+
+      <p><b>Service Objects:</b></p>
+      <pre>GET /object/protocolportobjects?expanded=true&limit=1000&offset=0
+GET /object/icmpv4objects?expanded=true&limit=1000
+GET /object/portobjectgroups?expanded=true&limit=1000</pre>
+      <div class="warn-box">⚠ FMC 7.x ใช้ endpoint <code>/object/protocolportobjects</code> เดียว (รวม TCP+UDP ในตัวเดียวกัน แยกด้วย field <code>protocol</code>) — endpoint แยก <code>/object/tcpportobjects</code> และ <code>/object/udpportobjects</code> ไม่มีจริงบน FMC 7.6.5 (ทดสอบแล้วได้ 404) ห้ามใช้</div>
+
+      <h3>③ เปรียบเทียบ</h3>
+      <ul>
+        <li>เลือก tab (Security Policy / NAT Policy / Network Objects / Service Objects) ที่มุมบน — CP file และ FMC data จะสลับตาม tab ที่เลือก</li>
+        <li>ปุ่ม <b>CP → FMC ⇄</b> ที่ header สลับทิศทางเปรียบเทียบ (ปกติเช็คว่า CP มีอะไรที่ FMC ยังไม่มี — กดสลับเพื่อเช็คกลับด้าน)</li>
+        <li>ปรับ checkbox ตัวเลือกด้านซ้ายได้ตามต้องการ (เช่น รวม Disabled rules, เทียบชื่อ Object ตรงๆ)</li>
+        <li>กด <b>▶ เปรียบเทียบ</b> เมื่ออัปโหลดครบทั้งสองฝั่ง</li>
+      </ul>
+
+      <h3>④ อ่านผลลัพธ์</h3>
+      <p>แท็บผลลัพธ์แบ่งเป็น <span class="stbadge st-ok">✓ Match</span> <span class="stbadge st-miss">✗ Missing</span> <span class="stbadge st-mm">⚠ Mismatch</span> <span class="stbadge st-ex">+ Extra</span> — คลิกแถวเพื่อดูรายละเอียดเทียบข้าง CP/FMC ใช้ช่องค้นหาเพื่อกรองได้</p>
+      <p><b>Security Policy มีอีก 2 แท็บ (v3.7.0):</b><br>
+      <span class="stbadge st-splt">⧉ Rule ที่ถูกแยก</span> — FMT มีเพดาน object ต่อ 1 access rule (~50) CP rule ที่ object เกินจะถูกหั่นเป็น <code>Rule_#99-1 / -2 / -3</code> เครื่องมือจะรวมกลับเป็น rule เดียวแล้ว union object ทั้งหมดก่อนเทียบ จึงไม่ขึ้น Mismatch/Extra ปลอมอีก (ปิดได้ที่ตัวเลือก “รวม rule ที่ FMT แยก”)<br>
+      <span class="stbadge st-ord">⇅ ลำดับผิด</span> — FMT ไม่ได้ย้าย rule ตามลำดับเดิมเสมอ (เช่น CP #3200 ไปโผล่ตำแหน่ง 250) การเทียบเนื้อหาใช้เลข Rule เป็นตัวจับคู่ (ไม่ใช้ตำแหน่ง) ส่วนลำดับตรวจแยกด้วย LIS จึง flag เฉพาะ rule ที่ต้องย้ายจริง ไม่ลามทั้งแถว — <b>ลำดับสำคัญ</b> เพราะ rule บนชนะเสมอ การสลับที่ทำให้เกิด shadow หรือ traffic หลุดได้</p>
+
+      <h3>⑤ Export ผลลัพธ์</h3>
+      <ul>
+        <li><b>⬇ CSV</b> — export ผลเปรียบเทียบทั้งหมดเป็นไฟล์ตาราง</li>
+        <li><b>📋 Bulk JSON</b> — export เฉพาะรายการ Missing เพื่อสร้างเข้า FMC ผ่าน bulk API (แยกไฟล์ตาม type อัตโนมัติ: hosts / networks / ranges / groups)</li>
+      </ul>
+      <div class="warn-box">⚠ FMC bulk endpoint ไม่รับ JSON array มาตรฐาน ต้อง POST เป็น object ต่อกันตรงๆ โดยไม่มี comma หรือ <code>[ ]</code> คั่น — ไฟล์ที่ export จากเครื่องมือนี้ทำรูปแบบให้ถูกต้องแล้ว ใช้วางใน body ของ POST ได้เลย เช่น <code>POST /object/hosts?bulk=true</code> สำหรับ hosts, <code>/object/networks?bulk=true</code> สำหรับ networks, <code>/object/protocolportobjects?bulk=true</code> สำหรับ TCP/UDP services (type: ProtocolPortObject + field protocol: TCP หรือ UDP)</div>
+      <p style="color:var(--muted);font-size:10.5px">Group ต้องแปลง member เป็น object ID ของ FMC เองก่อน POST เพราะ NetworkGroup ต้องอ้างอิง ID ของสมาชิกที่มีอยู่แล้วในระบบ</p>
+
+    </div>
+  </div>
+</div>
+
+<!-- SECTION TABS -->
+<div id="secbar">
+  <div class="stab active" data-sec="policy" onclick="gotoSec('policy')">📋 Security Policy <span class="stab-cnt" id="sc-policy">—</span></div>
+  <div class="stab"        data-sec="nat"    onclick="gotoSec('nat')">🔄 NAT Policy <span class="stab-cnt" id="sc-nat">—</span></div>
+  <div class="stab"        data-sec="objects" onclick="gotoSec('objects')">🗂 Network Objects <span class="stab-cnt" id="sc-objects">—</span></div>
+  <div class="stab"        data-sec="services" onclick="gotoSec('services')">⚙ Service Objects <span class="stab-cnt" id="sc-services">—</span></div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- LEFT -->
+<div id="lpanel">
+
+  <!-- CP Files -->
+  <div class="lsec">
+    <div class="ltitle" id="cp-title">① Check Point — XML Files</div>
+
+    <div class="uzone" id="uz-policy"
+         onclick="document.getElementById('fi-policy').click()"
+         ondragover="event.preventDefault();this.style.borderColor='#4a80c4'"
+         ondragleave="this.style.borderColor=''"
+         ondrop="event.preventDefault();this.style.borderColor='';cpLoad('policy',event.dataTransfer.files[0])">
+      <input type="file" id="fi-policy" accept=".xml" style="display:none" onchange="cpLoad('policy',this.files[0])">
+      <div class="uz-icon">📋</div>
+      <div class="uz-name">Security_Policy.xml</div>
+      <div class="uz-hint">SmartConsole → File → Export Policy</div>
+      <div class="uz-status" id="st-policy"></div>
+    </div>
+
+    <div class="uzone" id="uz-nat"
+         onclick="document.getElementById('fi-nat').click()"
+         ondragover="event.preventDefault();this.style.borderColor='#4a80c4'"
+         ondragleave="this.style.borderColor=''"
+         ondrop="event.preventDefault();this.style.borderColor='';cpLoad('nat',event.dataTransfer.files[0])">
+      <input type="file" id="fi-nat" accept=".xml" style="display:none" onchange="cpLoad('nat',this.files[0])">
+      <div class="uz-icon">🔄</div>
+      <div class="uz-name">NAT_Policy.xml</div>
+      <div class="uz-hint">SmartConsole → NAT → Export</div>
+      <div class="uz-status" id="st-nat"></div>
+    </div>
+
+    <div class="uzone" id="uz-objects"
+         onclick="document.getElementById('fi-objects').click()"
+         ondragover="event.preventDefault();this.style.borderColor='#4a80c4'"
+         ondragleave="this.style.borderColor=''"
+         ondrop="event.preventDefault();this.style.borderColor='';cpLoad('objects',event.dataTransfer.files[0])">
+      <input type="file" id="fi-objects" accept=".xml" style="display:none" onchange="cpLoad('objects',this.files[0])">
+      <div class="uz-icon">🗂</div>
+      <div class="uz-name">network_objects.xml</div>
+      <div class="uz-hint">SmartConsole → Manage Objects → Export</div>
+      <div class="uz-status" id="st-objects"></div>
+    </div>
+
+    <div class="uzone" id="uz-services"
+         onclick="document.getElementById('fi-services').click()"
+         ondragover="event.preventDefault();this.style.borderColor='#4a80c4'"
+         ondragleave="this.style.borderColor=''"
+         ondrop="event.preventDefault();this.style.borderColor='';cpLoad('services',event.dataTransfer.files[0])">
+      <input type="file" id="fi-services" accept=".xml" style="display:none" onchange="cpLoad('services',this.files[0])">
+      <div class="uz-icon">⚙</div>
+      <div class="uz-name">services.xml</div>
+      <div class="uz-hint">SmartConsole → Manage Services → Export</div>
+      <div class="uz-status" id="st-services"></div>
+    </div>
+  </div>
+
+  <!-- FMC Input -->
+  <div class="lsec">
+    <div class="ltitle">② FMC — <span id="fmc-lbl">Security Policy</span></div>
+
+    <textarea id="fmc-paste" placeholder="Paste FMC JSON ที่นี่...&#10;รองรับหลาย JSON ต่อกัน"></textarea>
+
+    <div id="fmc-drop"
+         ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')"
+         ondrop="event.preventDefault();this.classList.remove('dragover');fmcLoadFiles(event.dataTransfer.files)">
+      <input type="file" id="fi-fmc" accept=".json,.csv" multiple style="display:none" onchange="fmcLoadFiles(this.files)">
+      <div id="fmc-drop-icon">📂</div>
+      <div id="fmc-drop-text">drag &amp; drop หลายไฟล์<br><small>hosts + networks + ranges + groups</small></div>
+      <div id="fmc-pick-btn" onclick="document.getElementById('fi-fmc').click()">📁 เลือกไฟล์</div>
+    </div>
+
+    <div id="fmc-files"></div>
+    <div id="fmc-footer">
+      <button id="fmc-clear-btn" onclick="clearFmcFiles()">✕ ล้างทั้งหมด</button>
+      <div id="fmc-badge">0 items</div>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="lsec">
+    <div class="ltitle">ตัวเลือก</div>
+    <label class="opt-row"><input type="checkbox" id="o-dis" checked> รวม Disabled rules</label>
+    <label class="opt-row"><input type="checkbox" id="o-name"> เปรียบเทียบชื่อ Object ตรงๆ</label>
+    <label class="opt-row"><input type="checkbox" id="o-act" checked> เช็ค Action / Type</label>
+    <label class="opt-row"><input type="checkbox" id="o-src" checked> เช็ค Source / IP</label>
+    <label class="opt-row"><input type="checkbox" id="o-dst" checked> เช็ค Destination</label>
+    <label class="opt-row"><input type="checkbox" id="o-svc" checked> เช็ค Service / Port</label>
+    <label class="opt-row"><input type="checkbox" id="o-st"  checked> เช็ค Enable/Disable</label>
+    <label class="opt-row"><input type="checkbox" id="o-mrg" checked onchange="if(RES[curSec].length)runCmp()"> รวม rule ที่ FMT แยก (Rule#N-1/-2)</label>
+    <label class="opt-row"><input type="checkbox" id="o-ord" checked onchange="if(RES[curSec].length)runCmp()"> ตรวจลำดับ rule (Order)</label>
+  </div>
+
+  <button id="btn-run" onclick="runCmp()" disabled>▶ เปรียบเทียบ</button>
+</div>
+
+<!-- RIGHT -->
+<div id="rpanel">
+
+  <div id="summary">
+    <div class="scard ok"><div class="scard-num" id="c-ok">—</div><div class="scard-lbl">✓ Match</div></div>
+    <div class="scard err"><div class="scard-num" id="c-ms">—</div><div class="scard-lbl" id="lbl-miss">✗ Missing FMC</div></div>
+    <div class="scard wa"><div class="scard-num" id="c-mm">—</div><div class="scard-lbl">⚠ Mismatch</div></div>
+    <div class="scard in"><div class="scard-num" id="c-ex">—</div><div class="scard-lbl" id="lbl-extra">+ Extra FMC</div></div>
+    <div class="scard pu"><div class="scard-num" id="c-sk">—</div><div class="scard-lbl">— Skip</div></div>
+    <div class="scard or"><div class="scard-num" id="c-or">—</div><div class="scard-lbl">⇅ Order ผิด</div></div>
+  </div>
+
+  <div id="rtabs">
+    <div class="rtab active" data-tab="all"      onclick="showTab('all')">ทั้งหมด <span class="rtab-cnt" id="rn-all">0</span></div>
+    <div class="rtab"        data-tab="missing"  onclick="showTab('missing')"><span id="lbl-tab-miss">Missing FMC</span> <span class="rtab-cnt" id="rn-miss">0</span></div>
+    <div class="rtab"        data-tab="mismatch" onclick="showTab('mismatch')">Mismatch <span class="rtab-cnt" id="rn-mm">0</span></div>
+    <div class="rtab"        data-tab="ok"       onclick="showTab('ok')">Match <span class="rtab-cnt" id="rn-ok">0</span></div>
+    <div class="rtab"        data-tab="extra"    onclick="showTab('extra')"><span id="lbl-tab-ex">Extra FMC</span> <span class="rtab-cnt" id="rn-ex">0</span></div>
+    <div class="rtab" id="rtab-order" data-tab="order" onclick="showTab('order')">⇅ ลำดับผิด <span class="rtab-cnt" id="rn-or">0</span></div>
+    <div class="rtab" id="rtab-split" data-tab="split" onclick="showTab('split')">⧉ Rule ที่ถูกแยก <span class="rtab-cnt" id="rn-sp">0</span></div>
+  </div>
+
+  <div id="tblarea">
+    <div id="toolbar" style="display:none">
+      <input id="search" type="text" placeholder="🔍 ค้นหา…" oninput="filterTable()">
+      <div id="tcnt"></div>
+      <button class="tbtn tbtn-csv"  id="btn-csv"  onclick="exportCSV()"  disabled>⬇ CSV</button>
+      <button class="tbtn tbtn-json" id="btn-json" onclick="exportJSON()" disabled>📋 Bulk JSON</button>
+    </div>
+    <div id="result">
+      <div id="placeholder">
+        <div class="icon">⚖</div>
+        <p>อัปโหลด CP XML และ FMC JSON แล้วกด เปรียบเทียบ</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- #main -->
+
+<script>
+'use strict';
+const VER = 'v3.7.0';
+
+// ── State ────────────────────────────────────────────────────────────────────
+const CP  = { policy:[], nat:[], objects:[], services:[] };
+const FMC = { policy:[], nat:[], objects:[], services:[] };
+const RES = { policy:[], nat:[], objects:[], services:[] };
+const FMC_FILES = { policy:[], nat:[], objects:[], services:[] };
+
+let curSec = 'policy';
+let curTab = 'all';
+let dir    = 'cp2fmc';  // or 'fmc2cp'
+let openDetRow = -1;
+
+const SEC_NAMES = { policy:'Security Policy', nat:'NAT Policy', objects:'Network Objects', services:'Service Objects' };
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('ver').textContent = VER;
+  try { if (localStorage.getItem('fw_theme') === 'light') applyTheme('light'); } catch(e) {}
+  document.getElementById('fmc-paste').addEventListener('input', function() {
+    const raw = this.value.trim();
+    if (!raw) return;
+    const items = parseFMCRaw(raw, curSec);
+    const arr = FMC_FILES[curSec];
+    const idx = arr.findIndex(f => f.name === '[paste]');
+    if (idx >= 0) arr[idx] = { name:'[paste]', items };
+    else arr.push({ name:'[paste]', items });
+    mergeFMC(curSec);
+    renderFileList(curSec);
+    checkReady();
+  });
+  startIdleLogout();
+});
+
+// ── Idle auto-logout (10 นาทีไม่มีการใช้งาน → logout) ──────────────────────────
+function startIdleLogout() {
+  const IDLE_MS = 10 * 60 * 1000;
+  let idleTimer = null;
+  const doLogout = () => { window.location.href = '/logout'; };
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(doLogout, IDLE_MS);
+  };
+  ['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(evt =>
+    document.addEventListener(evt, resetIdleTimer, { passive: true }));
+  resetIdleTimer();
+}
+
+// ── Help modal ────────────────────────────────────────────────────────────────
+function toggleHelp(open) {
+  document.getElementById('help-overlay').classList.toggle('open', open);
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
+}
+function applyTheme(t) {
+  const isLight = t === 'light';
+  document.body.classList.toggle('light', isLight);
+  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+  try { localStorage.setItem('fw_theme', t); } catch(e) {}
+}
+
+// ── Direction toggle ──────────────────────────────────────────────────────────
+function toggleDir() {
+  dir = dir === 'cp2fmc' ? 'fmc2cp' : 'cp2fmc';
+  const isCp = dir === 'cp2fmc';
+  document.getElementById('dir-a').textContent = isCp ? 'CP'  : 'FMC';
+  document.getElementById('dir-b').textContent = isCp ? 'FMC' : 'CP';
+  document.getElementById('dir-a').style.color = isCp ? 'var(--cp)'  : 'var(--fmc)';
+  document.getElementById('dir-b').style.color = isCp ? 'var(--fmc)' : 'var(--cp)';
+  const missLbl  = isCp ? '✗ Missing FMC' : '✗ Missing CP';
+  const extraLbl = isCp ? '+ Extra FMC'   : '+ Extra CP';
+  document.getElementById('lbl-miss').textContent     = missLbl;
+  document.getElementById('lbl-extra').textContent    = extraLbl;
+  document.getElementById('lbl-tab-miss').textContent = missLbl;
+  document.getElementById('lbl-tab-ex').textContent   = extraLbl;
+  if (RES[curSec].length) runCmp();
+}
+
+// ── Section tabs ──────────────────────────────────────────────────────────────
+function gotoSec(sec) {
+  curSec = sec; openDetRow = -1;
+  document.querySelectorAll('.stab').forEach(t => t.classList.toggle('active', t.dataset.sec === sec));
+  document.getElementById('fmc-lbl').textContent = SEC_NAMES[sec];
+  renderFileList(sec);
+  const badge = document.getElementById('fmc-badge');
+  const n = FMC[sec].length;
+  badge.textContent = n ? n.toLocaleString() + ' items' : '0 items';
+  badge.classList.toggle('has-data', n > 0);
+  if (RES[sec].length) { updateSummary(); showTab(curTab); }
+  else { resetRight(); }
+  checkReady();
+}
+
+// ── CP load ───────────────────────────────────────────────────────────────────
+function cpLoad(sec, file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = function(e) {
+    try {
+      let items = [];
+      if (sec === 'policy')   items = parsePolicy(e.target.result);
+      else if (sec === 'nat') items = parseNat(e.target.result);
+      else if (sec === 'objects')  items = parseObjects(e.target.result);
+      else if (sec === 'services') items = parseServices(e.target.result);
+      CP[sec] = items;
+      setZone(sec, 'ok', '✓ ' + items.length.toLocaleString() + ' items');
+      document.getElementById('h-' + (sec === 'objects' ? 'obj' : sec === 'services' ? 'svc' : sec)).textContent = items.length.toLocaleString();
+      updateSecBadge(sec, null);
+      checkReady();
+    } catch(err) {
+      setZone(sec, 'err', '✗ ' + err.message);
+    }
+  };
+  rd.onerror = function() { setZone(sec, 'err', '✗ อ่านไฟล์ไม่ได้'); };
+  rd.readAsText(file, 'ISO-8859-1');
+}
+
+function setZone(sec, state, msg) {
+  const uz = document.getElementById('uz-' + sec);
+  const st = document.getElementById('st-' + sec);
+  if (!uz || !st) return;
+  uz.className = 'uzone' + (state === 'ok' ? ' loaded' : state === 'err' ? ' errored' : '');
+  st.textContent = msg;
+  st.className = 'uz-status ' + state;
+}
+
+// ── FMC load ──────────────────────────────────────────────────────────────────
+function fmcLoadFiles(files) {
+  if (!files || !files.length) return;
+  Array.from(files).forEach(f => fmcLoadFile(f));
+}
+function fmcLoadFile(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = function(e) {
+    const items = parseFMCRaw(e.target.result, curSec);
+    const arr = FMC_FILES[curSec];
+    const idx = arr.findIndex(f => f.name === file.name);
+    if (idx >= 0) arr[idx] = { name: file.name, items };
+    else arr.push({ name: file.name, items });
+    mergeFMC(curSec);
+    renderFileList(curSec);
+    checkReady();
+  };
+  rd.onerror = function() { alert('อ่านไฟล์ไม่ได้: ' + file.name); };
+  rd.readAsText(file, 'UTF-8');
+}
+function mergeFMC(sec) {
+  FMC[sec] = FMC_FILES[sec].flatMap(f => f.items);
+  const n = FMC[sec].length;
+  const badge = document.getElementById('fmc-badge');
+  badge.textContent = n ? n.toLocaleString() + ' items' : '0 items';
+  badge.classList.toggle('has-data', n > 0);
+}
+function renderFileList(sec) {
+  const el = document.getElementById('fmc-files');
+  el.innerHTML = FMC_FILES[sec].map((f, i) => `
+    <div class="ffile-row">
+      <span class="ffile-cnt">${f.items.length.toLocaleString()}</span>
+      <span class="ffile-name" title="${esc(f.name)}">${esc(f.name)}</span>
+      <button class="ffile-del" onclick="removeFMCFile(${i})">✕</button>
+    </div>`).join('');
+}
+function removeFMCFile(i) {
+  FMC_FILES[curSec].splice(i, 1);
+  mergeFMC(curSec);
+  renderFileList(curSec);
+  checkReady();
+}
+function clearFmcFiles() {
+  FMC_FILES[curSec] = [];
+  FMC[curSec] = [];
+  renderFileList(curSec);
+  document.getElementById('fmc-badge').textContent = '0 items';
+  document.getElementById('fmc-badge').classList.remove('has-data');
+  checkReady();
+}
+
+// ── Parse FMC JSON ────────────────────────────────────────────────────────────
+function parseFMCRaw(raw, sec) {
+  raw = (raw || '').trim();
+  if (!raw) return [];
+  const chunks = splitJSON(raw);
+  const items = [];
+  chunks.forEach(function(chunk) {
+    let p;
+    try { p = JSON.parse(chunk); } catch(e) { return; }
+    let arr = Array.isArray(p) ? p : (p.items || p.data || p.rules || [p]);
+    if (!Array.isArray(arr)) arr = [arr];
+    if      (sec === 'policy')   items.push(...arr.map(normPolicy));
+    else if (sec === 'nat')      items.push(...arr.map(normNat));
+    else if (sec === 'objects')  items.push(...normObjects(arr));
+    else if (sec === 'services') items.push(...normServices(arr));
+  });
+  return items;
+}
+function splitJSON(raw) {
+  const chunks = []; let depth = 0, start = 0, inStr = false, esc = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (esc) { esc = false; continue; }
+    if (c === '\\' && inStr) { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === '{' || c === '[') depth++;
+    if (c === '}' || c === ']') {
+      depth--;
+      if (depth === 0) { const s = raw.slice(start, i+1).trim(); if (s) chunks.push(s); start = i+1; }
+    }
+  }
+  return chunks;
+}
+function normPolicy(r, i) {
+  const at = (r.action?.type || r.action || '').toLowerCase();
+  const act = at.includes('allow') || at.includes('accept') || at.includes('permit') ? 'accept' : 'drop';
+  const go = obj => { if (!obj) return []; const a = [...(obj.objects||[]),...(obj.literals||[]),...(obj.items||[])]; return a.map(o => o.name || o.value || '').filter(Boolean); };
+  const num = r.metadata?.ruleIndex ?? r.ruleIndex ?? r.rule_number ?? (i+1);
+  // BUG เดิม: go(...)||['Any'] ไม่เคย fallback เพราะ [] (array ว่าง) เป็น truthy ใน JS
+  // เสมอ ทำให้ rule ที่ FMC ไม่มี destinationPorts/sourceNetworks/destinationNetworks
+  // ระบุไว้ (หมายถึง "Any" — พบบ่อยมาก) กลายเป็น [] แทนที่จะเป็น ['Any'] ทำให้ขึ้น
+  // Diff "Service" ปลอมแทบทุก rule ที่ควรจะ Match — ต้องเช็ค .length แทน
+  const srcArr = go(r.sourceNetworks), dstArr = go(r.destinationNetworks), svcArr = go(r.destinationPorts);
+  return { num:+num||i+1, name:r.name||'', action:act, enabled:r.enabled!==false,
+    src: srcArr.length?srcArr:['Any'], dst: dstArr.length?dstArr:['Any'], svc: svcArr.length?svcArr:['Any'] };
+}
+function normNat(r, i) {
+  const go = o => o?.name || o?.value || 'Any';
+  return { num:r.metadata?.ruleIndex??r.ruleIndex??(i+1), name:r.description||r.name||'',
+    natType:(r.natType||'static').toLowerCase(), enabled:r.enabled!==false,
+    origSrc:go(r.originalSource), transSrc:go(r.translatedSource)||'Original',
+    origDst:go(r.originalDestination), transDst:go(r.translatedDestination)||'Original' };
+}
+function normObjects(arr) { return arr.map(o => ({ name:o.name||'', type:(o.type||'').toLowerCase(), value:o.value||'', id:o.id||'' })); }
+function normServices(arr) { return arr.map(o => ({ name:o.name||'', type:(o.type||'').toLowerCase(), port:o.port||o.icmpType||'', id:o.id||'' })); }
+
+// ── Parse CP XML ──────────────────────────────────────────────────────────────
+function parsePolicy(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const rules = [];
+  doc.querySelectorAll('rule').forEach(rule => {
+    const cn = rule.querySelector(':scope > Class_Name');
+    if (!cn || cn.textContent !== 'security_rule') return;
+    const numEl = rule.querySelector(':scope > Rule_Number'); if (!numEl) return;
+    const get = sel => { const el = rule.querySelector(':scope > ' + sel); return el ? el.textContent.trim() : ''; };
+    let action = '';
+    rule.querySelectorAll('action type').forEach(t => { if (['accept','drop','reject'].includes(t.textContent.trim())) action = t.textContent.trim(); });
+    const refs = sel => { const c = rule.querySelector(':scope > ' + sel); if (!c) return [];
+      return [...c.querySelectorAll('reference')].map(r => { const n = r.querySelector('Name'); return n ? n.textContent.trim() : ''; }).filter(Boolean); };
+    rules.push({ num:parseInt(numEl.textContent), name:get('name')||get('n')||'', action, disabled:get('disabled')==='true',
+      src:refs('src')||['Any'], dst:refs('dst')||['Any'], svc:refs('services')||['Any'], comment:get('comments') });
+  });
+  return rules.sort((a,b) => a.num - b.num);
+}
+function parseNat(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const rules = [];
+  doc.querySelectorAll('rule_adtr').forEach(rule => {
+    const cn = rule.querySelector(':scope > Class_Name');
+    if (!cn || cn.textContent !== 'address_translation_rule') return;
+    const numEl = rule.querySelector(':scope > Rule_Number'); if (!numEl) return;
+    const get  = sel => { const el = rule.querySelector(':scope > ' + sel); return el ? el.textContent.trim() : ''; };
+    const gn   = sel => { const el = rule.querySelector(sel); return el ? el.textContent.trim() : 'Any'; };
+    const sm = gn('src_adtr_translated > adtr_method');
+    rules.push({ num:parseInt(numEl.textContent), name:get('name')||get('n')||'', disabled:get('disabled')==='true',
+      natType:/hide/i.test(sm)?'hide':'static',
+      origSrc:gn('src_adtr > src_adtr > Name')||'Any', transSrc:gn('src_adtr_translated > reference > Name')||'Original',
+      origDst:gn('dst_adtr > dst_adtr > Name')||'Any', transDst:gn('dst_adtr_translated > reference > Name')||'Original' });
+  });
+  return rules.sort((a,b) => a.num - b.num);
+}
+function parseObjects(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const items = [];
+  const TM = { host_plain:'host', network:'network', address_range:'range', network_object_group:'group' };
+  doc.querySelectorAll('network_object').forEach(obj => {
+    const cn = obj.querySelector(':scope > Class_Name'); if (!cn || !TM[cn.textContent]) return;
+    const ne = obj.querySelector(':scope > Name'); if (!ne) return;
+    const name = ne.textContent.trim(), type = TM[cn.textContent];
+    let value = '';
+    if (type === 'host') { const ip = obj.querySelector(':scope > ipaddr'); value = ip ? ip.textContent.trim() : ''; }
+    else if (type === 'network') {
+      const ip = obj.querySelector(':scope > ipaddr'), mask = obj.querySelector(':scope > netmask');
+      if (ip && mask) { const cidr = mask.textContent.trim().split('.').reduce((a,b) => a+parseInt(b).toString(2).replace(/0/g,'').length, 0); value = ip.textContent.trim()+'/'+cidr; }
+    } else if (type === 'range') {
+      const f = obj.querySelector(':scope > ipaddr_first'), l = obj.querySelector(':scope > ipaddr_last');
+      value = (f?f.textContent.trim():'') + '–' + (l?l.textContent.trim():'');
+    } else if (type === 'group') {
+      const mem = obj.querySelector(':scope > members');
+      if (mem) value = [...mem.children].map(m => { const n = m.querySelector('Name'); return n?n.textContent.trim():''; }).filter(Boolean).join('; ');
+    }
+    items.push({ name, type, value });
+  });
+  return items;
+}
+function parseServices(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const items = [];
+  const SM = { tcp_service:'tcp', udp_service:'udp', icmp_service:'icmp', icmpv6_service:'icmpv6', other_service:'other', service_group:'group', compound_tcp_service:'tcp' };
+  doc.querySelectorAll('*').forEach(el => {
+    const cn = el.querySelector(':scope > Class_Name'); if (!cn || !SM[cn.textContent]) return;
+    const ne = el.querySelector(':scope > Name'); if (!ne) return;
+    const name = ne.textContent.trim(), stype = SM[cn.textContent];
+    let port = '';
+    if (['tcp','udp'].includes(stype)) { const p = el.querySelector(':scope > port'); port = p?p.textContent.trim():''; }
+    else if (stype === 'icmp') { const t = el.querySelector(':scope > icmp_type'); port = t?'type:'+t.textContent.trim():''; }
+    else if (stype === 'group') { const mem = el.querySelector(':scope > members'); if (mem) port = [...mem.children].map(m => { const n = m.querySelector('Name'); return n?n.textContent.trim():''; }).filter(Boolean).join('; '); }
+    items.push({ name, type:stype, port });
+  });
+  return items;
+}
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+function runCmp() {
+  const sec = curSec;
+  const inclDis = document.getElementById('o-dis').checked;
+  const chkAct  = document.getElementById('o-act').checked;
+  const chkSrc  = document.getElementById('o-src').checked;
+  const chkDst  = document.getElementById('o-dst').checked;
+  const chkSvc  = document.getElementById('o-svc').checked;
+  const chkSt   = document.getElementById('o-st').checked;
+  const chkMrg  = document.getElementById('o-mrg').checked;
+  const chkOrd  = document.getElementById('o-ord').checked;
+  const isCp    = dir === 'cp2fmc';
+  const res = [];
+
+  if (sec === 'policy') {
+    // เดิมจับคู่ CP/FMC rule ด้วยเลข rule number ตรงๆ (s.num) — ถ้าจำนวน rule
+    // สองฝั่งไม่เท่ากัน (มี rule ถูกแทรก/ลบ/แยกระหว่าง migrate เช่น CP 3,219 vs
+    // FMC 3,249) ตำแหน่งจะเริ่มเบี้ยวตั้งแต่จุดที่จำนวนต่างกัน ทำให้ rule ที่เหลือ
+    // ทั้งหมดข้างหลังจุดนั้นจับคู่ผิดตัวไปเรื่อยๆ กลายเป็น Mismatch ปลอมจำนวนมาก
+    // (เนื้อหาสองฝั่งไม่เกี่ยวข้องกันเลยแต่ดันถูกจับมาเทียบกันเพราะเลขบังเอิญตรงกัน)
+    // แก้โดยดึงเลข CP rule เดิมที่ฝังอยู่ใน Name ของ FMC rule (เช่น "Rule_#2972")
+    // มาจับคู่กับ CP rule.num ตรงๆ แทนตำแหน่ง (ดู reconcilePolicy ด้านล่าง)
+    // ยุบ Rule_#N-1/-2/-3 ที่ FMT หั่นไว้ ให้เป็น rule เดียวก่อนเสมอ (ทั้งสองทิศทาง)
+    const fmcPol = chkMrg ? mergeFmcPolicy(FMC.policy)
+                          : FMC.policy.map(o => Object.assign({}, o, { parts:1, partNames:[o.name] }));
+    const src = isCp ? (inclDis ? CP.policy : CP.policy.filter(r => !r.disabled)) : fmcPol;
+    const dst = isCp ? fmcPol : CP.policy;
+    const { pairs, extra } = reconcilePolicy(src, dst);
+    pairs.forEach(([s, match]) => {
+      const cp = isCp ? s : match;
+      const fm = isCp ? match : s;
+      if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
+      if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
+      const diffs = [];
+      if (chkAct && cp && fm && !aeq(cp.action, fm.action)) diffs.push({ f:'Action', cv:cp.action.toUpperCase(), fv:fm.action.toUpperCase() });
+      if (chkSrc && cp && fm && !amatch(cp.src, fm.src)) diffs.push({ f:'Source', cv:(cp.src||[]).join('; '), fv:(fm.src||[]).join('; ') });
+      if (chkDst && cp && fm && !amatch(cp.dst, fm.dst)) diffs.push({ f:'Dest',   cv:(cp.dst||[]).join('; '), fv:(fm.dst||[]).join('; ') });
+      if (chkSvc && cp && fm && !amatch(cp.svc, fm.svc)) diffs.push({ f:'Service',cv:(cp.svc||[]).join('; '), fv:(fm.svc||[]).join('; ') });
+      if (chkSt  && cp && fm && cp.disabled === fm.enabled) diffs.push({ f:'Status', cv:cp.disabled?'DISABLED':'ENABLED', fv:fm.enabled?'ENABLED':'DISABLED' });
+      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+    });
+    extra.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
+    if (!inclDis && isCp) CP.policy.filter(r => r.disabled).forEach(r => res.push({ status:'skip', cp:r, fmc:null, diffs:[] }));
+    // ตรวจลำดับแยกต่างหากจากการเทียบเนื้อหา — rule ที่เนื้อหาตรงเป๊ะแต่วางผิดตำแหน่ง
+    // ยังคงนับเป็น Match (เนื้อหาถูก) แต่จะถูก flag ในแท็บ "ลำดับผิด" ให้ไปแก้
+    if (chkOrd) markOrder(res);
+    else res.forEach(r => { r.order = null; r.orderBad = false; });
+
+  } else if (sec === 'nat') {
+    const src  = isCp ? (inclDis ? CP.nat : CP.nat.filter(r => !r.disabled)) : FMC.nat;
+    const dMap = isCp ? new Map(FMC.nat.map(r => [r.num, r])) : new Map(CP.nat.map(r => [r.num, r]));
+    src.forEach(s => {
+      const cp = isCp ? s : dMap.get(s.num);
+      const fm = isCp ? dMap.get(s.num) : s;
+      if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
+      if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
+      dMap.delete(s.num);
+      const diffs = [];
+      if (chkAct && cp && fm && (cp.natType||'') !== (fm.natType||'')) diffs.push({ f:'Type', cv:cp.natType||'', fv:fm.natType||'' });
+      if (chkSrc && cp && fm && !veq(cp.origSrc,  fm.origSrc))  diffs.push({ f:'Orig Src',  cv:cp.origSrc,  fv:fm.origSrc });
+      if (chkSrc && cp && fm && !veq(cp.transSrc, fm.transSrc)) diffs.push({ f:'Trans Src', cv:cp.transSrc, fv:fm.transSrc });
+      if (chkDst && cp && fm && !veq(cp.origDst,  fm.origDst))  diffs.push({ f:'Orig Dst',  cv:cp.origDst,  fv:fm.origDst });
+      if (chkDst && cp && fm && !veq(cp.transDst, fm.transDst)) diffs.push({ f:'Trans Dst', cv:cp.transDst, fv:fm.transDst });
+      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+    });
+    dMap.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
+
+  } else if (sec === 'objects') {
+    // CP group ได้ type='group' ตรงตัวจาก TM map แต่ FMC ส่ง type เป็น "NetworkGroup"
+    // ซึ่ง normObjects() lowercase เหลือ "networkgroup" (ไม่ตรงกับ 'group' เป๊ะ) —
+    // ใช้ regex /group/ แทนเพื่อกันไม่ให้ group ของ FMC หลุดเข้ามาปนในพูล
+    const isGroup = o => /group/.test(o.type);
+    const src  = isCp ? CP.objects.filter(o => !isGroup(o)) : FMC.objects.filter(o => !isGroup(o));
+    const dst  = isCp ? FMC.objects.filter(o => !isGroup(o)) : CP.objects.filter(o => !isGroup(o));
+    const { pairs, extra } = reconcile(src, dst, s => s.value, (o, v) => veqIP(o.value, v));
+    pairs.forEach(([s, match]) => {
+      const cp = isCp ? s : match;
+      const fm = isCp ? match : s;
+      if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
+      if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
+      const diffs = [];
+      if (chkSrc && cp && fm && !veqIP(cp.value, fm.value)) diffs.push({ f:'Value/IP', cv:cp.value||'', fv:fm.value||'' });
+      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+    });
+    extra.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
+
+  } else if (sec === 'services') {
+    // เหตุผลเดียวกับ objects ด้านบน — FMC service group เช่น "PortObjectGroup"
+    // lowercase เหลือ "portobjectgroup" ไม่ตรง 'group' เป๊ะ ใช้ regex /group/ แทน
+    const isGroup = s => /group/.test(s.type);
+    const src  = isCp ? CP.services.filter(s => !isGroup(s)) : FMC.services.filter(s => !isGroup(s));
+    const dst  = isCp ? FMC.services.filter(s => !isGroup(s)) : CP.services.filter(s => !isGroup(s));
+    const { pairs, extra } = reconcile(src, dst, s => s.port, (o, p) => np(o.port) === np(p));
+    pairs.forEach(([s, match]) => {
+      const cp = isCp ? s : match;
+      const fm = isCp ? match : s;
+      if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
+      if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
+      const diffs = [];
+      if (chkSvc && cp && fm && np(cp.port) !== np(fm.port)) diffs.push({ f:'Port', cv:cp.port||'', fv:fm.port||'' });
+      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+    });
+    extra.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
+  }
+
+  RES[sec] = res;
+  updateSecBadge(sec, res);
+  updateSummary();
+  showTab('all');
+  document.getElementById('btn-csv').disabled  = false;
+  document.getElementById('btn-json').disabled = false;
+  document.getElementById('toolbar').style.display = 'flex';
+}
+
+// ── Normalize helpers ─────────────────────────────────────────────────────────
+function nk(n) {
+  if (!n) return '';
+  if (document.getElementById('o-name').checked) return n.trim().toLowerCase();
+  // บาง object ตั้งชื่อแบบไม่มี underscore คั่นระหว่าง prefix กับ IP เช่น
+  // "Client10.6.100.48" / "Server10.254.1.230" (พบ 84 ชื่อใน network_objects.xml,
+  // 59 ชื่อมี IP ตรงกับ FMC อยู่แล้ว) — regex เดิมต้องมี "_" ต่อท้าย prefix เท่านั้น
+  // เลยไม่ตัดออก ทำให้ nk() ไม่เท่ากับฝั่ง FMC และกลายเป็น Missing ปลอม จึงเพิ่ม
+  // alternative แบบ lookahead (?=\d) ให้ตัด prefix ออกได้แม้ไม่มี underscore ตามหลัง
+  return n.replace(/^(GHB_Host_Plain_|GHB_Network_|GHB_Host_|GHB_Net_|GHB_Client_|GHB_Server_|GHB_|Server_|Client_|Host_|NET_|DMZ_|F5_|VDI_|Server(?=\d)|Client(?=\d)|Host(?=\d)|NET(?=\d)|DMZ(?=\d)|F5(?=\d)|VDI(?=\d))/i, '')
+          .replace(/[-_.]/g, '_').toLowerCase().trim();
+}
+// ── Grouped key matching ──────────────────────────────────────────────────────
+// ชื่อ Object ต่างกันหลายชื่ออาจ normalize (nk) เหลือ key เดียวกันได้ (เช่น
+// "Client_10.17.205.76" กับ "GHB_Host_Plain_10.17.205.76" ทั้งคู่ normalize เป็น
+// "10_17_205_76") — ถ้าใช้ Map ธรรมดา (key -> object เดียว) รายการที่ชนกันจะถูก
+// เขียนทับหายไปเงียบๆ ทำให้ผลเปรียบเทียบผิดพลาด (Missing/Mismatch ปลอม) จึงต้อง
+// เก็บเป็นกลุ่ม (key -> array) แล้วเลือกตัวที่ value/port ตรงที่สุดตอน match แทน
+function normFull(n) { return (n||'').trim().toLowerCase(); }
+// reconcile: จับคู่ src กับ dst เป็น 2 รอบทั้งชุด (ไม่ใช่ทีละตัวตามลำดับ) เพื่อกัน
+// กรณีชื่อต่างกันหลายชื่อ normalize (nk) ลงมาเหลือ key เดียวกัน แล้วตัวที่ควร
+// match ตรงเป๊ะ (ชื่อเหมือนกันทุกตัวอักษร) ถูกตัวอื่นแย่ง match ไปก่อนแบบสุ่มลำดับ
+//   รอบ 1 — จับคู่ด้วยชื่อเต็มตรงกันทุกตัวอักษรก่อน (แม่นที่สุด)
+//   รอบ 2 — ตัวที่เหลือ (ไม่มีชื่อตรงเป๊ะ) ค่อย fallback ไป nk() + เลือกตัวที่ value/port ตรงที่สุด
+function reconcile(srcArr, dstArr, valueOf, valueCmpFn) {
+  const dstPool = dstArr.map(o => ({ o, used:false }));
+  const byExact = new Map();
+  dstPool.forEach(w => {
+    const ek = normFull(w.o.name);
+    if (!byExact.has(ek)) byExact.set(ek, []);
+    byExact.get(ek).push(w);
+  });
+
+  const pairs = [];       // [srcItem, dstItemOrNull]
+  const unmatchedSrc = [];
+  srcArr.forEach(s => {
+    const cands = (byExact.get(normFull(s.name)) || []).filter(w => !w.used);
+    if (cands.length) { cands[0].used = true; pairs.push([s, cands[0].o]); }
+    else unmatchedSrc.push(s);
+  });
+
+  const byFuzzy = new Map();
+  dstPool.forEach(w => {
+    if (w.used) return;
+    const fk = nk(w.o.name);
+    if (!byFuzzy.has(fk)) byFuzzy.set(fk, []);
+    byFuzzy.get(fk).push(w);
+  });
+  unmatchedSrc.forEach(s => {
+    const cands = (byFuzzy.get(nk(s.name)) || []).filter(w => !w.used);
+    if (!cands.length) { pairs.push([s, null]); return; }
+    const exact = cands.find(w => valueCmpFn(w.o, valueOf(s)));
+    const chosen = exact || cands[0];
+    chosen.used = true;
+    pairs.push([s, chosen.o]);
+  });
+
+  const extra = dstPool.filter(w => !w.used).map(w => w.o);
+  return { pairs, extra };
+}
+// ── Policy rule matching by embedded rule number ──────────────────────────────
+// ตอน migrate เข้า FMC ชื่อ (Name) ของแต่ละ rule จะถูกตั้งเป็น "Rule_#<เลข CP rule
+// เดิม>" (เช่น "Rule_#2972") — เลขนี้คือเลข Rule_Number ตัวจริงจากฝั่ง CP ที่ฝังไว้
+// ในชื่อ ไม่ใช่ตำแหน่ง (row order) ของ FMC เอง ซึ่งเลื่อนได้เมื่อจำนวน rule สองฝั่ง
+// ไม่เท่ากัน (พบจริงกรณี CP 3,219 rule vs FMC 3,249 rule) — ดึงเลขนี้ออกมาจาก Name
+// แล้วใช้จับคู่กับ CP rule.num ตรงๆ แทนตำแหน่ง จะแม่นกว่าทั้งวิธีเทียบตำแหน่งเดิม
+// และวิธีเทียบเนื้อหา (ruleSig) ที่เคยลองมาก่อนหน้านี้
+function extractRuleNum(name) {
+  const m = /#\s*(\d+)/.exec(name || '');
+  return m ? parseInt(m[1], 10) : null;
+}
+// reconcilePolicy: จับคู่ด้วยเลขที่ดึงจาก Name เป็นหลัก (fallback เป็นเลขตำแหน่ง
+// ถ้า Name ไม่มีรูปแบบ "#เลข") — บาง CP rule อาจถูกแยกเป็นหลาย FMC rule ตอน
+// migrate (เช่น "Rule_#99-1", "Rule_#99-2" มาจาก CP rule #99 เดียวกัน) จึงเก็บ
+// เป็นกลุ่ม (เลข -> array) แล้วเลือกตัวที่เลขตำแหน่งใกล้เคียงต้นทางที่สุดเมื่อมี
+// หลายตัวในกลุ่มเดียวกัน
+// ── BUG FIX #1 (v3.7.0): FMT แยก rule เดียวเป็นหลาย rule เมื่อ object เกิน 50 ────
+// Firepower Migration Tool มีเพดาน object ต่อ 1 access rule (ประมาณ 50 รายการ
+// ต่อ field) — CP rule เดียวที่มี object มากกว่านั้นจะถูกหั่นเป็นหลาย FMC rule
+// ตั้งชื่อว่า "Rule_#99-1", "Rule_#99-2", "Rule_#99-3" (CP rule #99 มี 148 object
+// → ได้ 3 FMC rule) โค้ดเดิมเลือกมาแค่ตัวเดียว (ตัวที่เลขตำแหน่งใกล้ที่สุด) แล้ว
+// โยนที่เหลือไปกอง Extra ผลคือ:
+//   - rule ที่จริงๆ migrate ครบ กลับขึ้น "Mismatch" เพราะเห็น object แค่ 1 ใน 3 ส่วน
+//   - ส่วนที่ 2/3 ขึ้น "Extra FMC" ทั้งที่ไม่ใช่ของเกิน
+// แก้โดยจับ Rule_#99-* ทุกตัวมารวมเป็น rule เสมือนตัวเดียวก่อน แล้ว union
+// src/dst/svc ทั้งหมดเข้าด้วยกัน จึงเทียบกับ CP rule #99 ได้ตรงตามความจริง
+//
+// ruleBase: ตัด suffix "-N" ที่ FMT เติมท้ายออก เพื่อหา "ชื่อฐาน" ของ rule
+// ระวัง: ต้องบังคับให้มี -, _ หรือช่องว่างคั่นหน้าเลข ไม่งั้น "Rule_#99" เองจะถูก
+// ตัดเหลือ "Rule_#" (เลข 99 ติดกับ # ไม่มีตัวคั่น → regex ไม่ match = ถูกต้อง)
+function ruleBase(name) { return (name||'').trim().replace(/[-_ ]\d+$/, '').toLowerCase(); }
+
+// mergeSplitRules: รวม FMC rule หลายตัวที่มาจาก CP rule เดียวกันให้เป็นก้อนเดียว
+// - src/dst/svc = union (ตัดซ้ำด้วย nk() แบบเดียวกับที่ใช้เทียบ)
+// - ถ้าส่วนใดส่วนหนึ่งเป็น "Any" ทั้งก้อนถือเป็น Any (Any ครอบทุกอย่าง)
+// - num ใช้ตำแหน่งแรกสุด (ใช้ตรวจลำดับ), เก็บ parts/partNames ไว้โชว์ใน detail
+function mergeSplitRules(ws) {
+  const first = ws[0].o;
+  if (ws.length === 1) return Object.assign({}, first, { parts:1, partNames:[first.name] });
+  const uni = key => {
+    const seen = new Set(), out = [];
+    ws.forEach(w => (w.o[key]||[]).forEach(v => { const k = nk(v); if (!seen.has(k)) { seen.add(k); out.push(v); } }));
+    return out.some(isAny) ? ['Any'] : out;
+  };
+  const nums = ws.map(w => +w.o.num).filter(n => Number.isFinite(n));
+  return {
+    num: nums.length ? Math.min(...nums) : first.num,
+    numMax: nums.length ? Math.max(...nums) : first.num,
+    name: first.name, action: first.action,
+    enabled: ws.some(w => w.o.enabled),
+    src: uni('src'), dst: uni('dst'), svc: uni('svc'),
+    parts: ws.length,
+    partNames: ws.map(w => w.o.name),
+    partNums: nums
+  };
+}
+
+// mergeFmcPolicy: pre-process FMC rule list ให้ rule ที่ FMT หั่นออกมา ยุบกลับเป็น
+// ตัวเดียวก่อนเข้ากระบวนการเทียบ — ทำที่ชั้นนี้ (ไม่ใช่ในตอนจับคู่) เพื่อให้ผลถูก
+// ทั้งสองทิศทาง CP→FMC และ FMC→CP และให้ตัวนับ "items" ฝั่ง FMC สะท้อนจำนวน
+// rule เชิงตรรกะจริง key = เลข CP rule + ชื่อฐาน (กันรวมข้าม rule ที่ไม่เกี่ยวกัน
+// แม้เลขจะบังเอิญตรง)
+function mergeFmcPolicy(arr) {
+  const groups = new Map(), order = [];
+  arr.forEach((o, i) => {
+    const n = extractRuleNum(o.name);
+    const key = n !== null ? 'n' + n + '|' + ruleBase(o.name) : 'x' + i;
+    if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+    groups.get(key).push({ o });
+  });
+  return order.map(k => {
+    const g = groups.get(k);
+    g.sort((a,b) => (+a.o.num||0) - (+b.o.num||0));
+    return mergeSplitRules(g);
+  });
+}
+
+function reconcilePolicy(srcArr, dstArr) {
+  const dstPool = dstArr.map(o => ({ o, used:false }));
+  const byNum = new Map();
+  dstPool.forEach(w => {
+    const n = extractRuleNum(w.o.name);
+    const key = n !== null ? n : w.o.num;
+    if (!byNum.has(key)) byNum.set(key, []);
+    byNum.get(key).push(w);
+  });
+
+  const pairs = [];
+  srcArr.forEach(s => {
+    const key = extractRuleNum(s.name) ?? s.num;
+    const cands = (byNum.get(key) || []).filter(w => !w.used);
+    if (!cands.length) { pairs.push([s, null]); return; }
+    const chosen = cands.length === 1 ? cands[0]
+      : cands.reduce((a,b) => Math.abs(b.o.num - s.num) < Math.abs(a.o.num - s.num) ? b : a);
+    chosen.used = true;
+    pairs.push([s, chosen.o]);
+  });
+
+  const extra = dstPool.filter(w => !w.used).map(w => w.o);
+  return { pairs, extra };
+}
+
+// ── BUG FIX #2 (v3.7.0): ลำดับ rule ฝั่ง FMC ไม่เรียงตาม CP ──────────────────
+// FMT ไม่ได้ย้าย rule เข้า FMC ตามลำดับเดิมเสมอ (พบจริง: CP rule #3200 ไปโผล่
+// ตำแหน่งที่ 250 ใน FMC) — ลำดับสำคัญมากกับ firewall เพราะ rule ที่อยู่บนกว่า
+// ชนะเสมอ การสลับที่จึงทำให้ rule ล่างถูกบัง (shadow) หรือกลับกันคือ rule ที่
+// ควรถูกบังหลุดมาทำงานก่อน = ช่องโหว่/traffic หลุด
+//
+// วิธีตรวจ: เรียงคู่ที่จับได้ตามเลข CP แล้วดูว่าตำแหน่งฝั่ง FMC ยังไต่ขึ้น
+// (monotonic increasing) ไหม — ถ้าไม่ ต้องตอบให้ได้ว่า "ตัวไหนคือตัวที่ผิดที่"
+// ถ้าไล่เทียบกับตัวก่อนหน้าเฉยๆ rule เดียวที่หลุดไปไกลจะทำให้ตัวที่เหลือข้างหลัง
+// ขึ้นแดงยกแถว (false positive เป็นพันแถว) จึงใช้ LIS (Longest Increasing
+// Subsequence) หา "ชุดที่ยาวที่สุดที่ยังเรียงถูก" แล้ว flag เฉพาะตัวนอกชุดนั้น
+// = จำนวน rule ที่ต้องย้ายจริงน้อยที่สุด ตรงกับสิ่งที่วิศวกรต้องไปแก้จริง
+function markOrder(res) {
+  res.forEach(r => { r.order = null; r.orderBad = false; });
+  const pts = res.filter(r => r.cp && r.fmc && r.status !== 'skip')
+    .map(r => ({ r, c:+(r.cp.num), f:+(r.fmc.num) }))
+    .filter(p => Number.isFinite(p.c) && Number.isFinite(p.f))
+    .sort((a,b) => a.c - b.c);
+  const n = pts.length;
+  if (!n) return 0;
+
+  // patience sorting + เก็บ prev ไว้ย้อนรอย LIS
+  const tailVal = [], tailIdx = [], prev = new Array(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    const v = pts[i].f;
+    let lo = 0, hi = tailVal.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (tailVal[mid] < v) lo = mid + 1; else hi = mid; }
+    tailVal[lo] = v; tailIdx[lo] = i;
+    prev[i] = lo > 0 ? tailIdx[lo-1] : -1;
+  }
+  const inLis = new Array(n).fill(false);
+  let k = tailIdx.length ? tailIdx[tailIdx.length-1] : -1;
+  while (k >= 0) { inLis[k] = true; k = prev[k]; }
+
+  // ตำแหน่งที่ "ควรจะเป็น" ของแต่ละ rule = ลำดับที่ i เมื่อเรียงตาม CP
+  let bad = 0;
+  pts.forEach((p, i) => {
+    const ok = inLis[i];
+    if (!ok) bad++;
+    // นับว่ากระโดดข้าม rule ที่เรียงถูกไปกี่ตัว (บอกความรุนแรงของการสลับที่)
+    let jumped = 0;
+    if (!ok) for (let j = 0; j < n; j++) {
+      if (!inLis[j]) continue;
+      if ((j < i && pts[j].f > p.f) || (j > i && pts[j].f < p.f)) jumped++;
+    }
+    // ทิศทาง: เทียบตำแหน่งจริงใน FMC กับตำแหน่งที่ควรอยู่ (อันดับที่ i ตามลำดับ CP)
+    // ถ้าตำแหน่งจริงมาก่อนที่ควรอยู่ = "ขึ้นบน" (อันตรายกว่า เพราะไปบัง rule อื่น)
+    const shouldBeAfter = pts.filter((x,j) => j < i && inLis[j]).length;
+    const actuallyAfter = pts.filter((x,j) => inLis[j] && x.f < p.f).length;
+    p.r.order = { cpSeq:p.c, fmcSeq:p.f, ok, jumped,
+      moved: ok ? '' : (actuallyAfter < shouldBeAfter ? 'up' : 'down') };
+    p.r.orderBad = !ok;
+  });
+  return bad;
+}
+function veq(a, b) { return (a||'').replace(/\s/g,'').toLowerCase() === (b||'').replace(/\s/g,'').toLowerCase(); }
+// CP บาง object เป็น type "network" แต่ mask /32 (คือ host ตัวเดียว) — ฝั่ง FMC
+// จะถูก migrate เป็น Host object (ไม่มี /32 ต่อท้าย) เลยต้องตัด /32 ก่อนเทียบค่า
+// นอกจากนี้ CP range ใช้ en-dash "–" คั่น (เช่น 10.1.1.1–10.1.1.10) แต่ FMC range
+// ใช้ hyphen "-" ธรรมดา ("10.1.1.1-10.1.1.10") ทำให้ veq ตรงๆ ไม่ match แม้ค่าตรงกัน
+// เลยต้อง normalize en-dash/em-dash ให้เป็น hyphen (และตัดช่องว่างรอบขีด) ก่อนเทียบ
+function veqIP(a, b) {
+  const norm = v => (v||'').replace(/\/32$/, '').replace(/[–—]/g, '-').replace(/\s*-\s*/g, '-');
+  return veq(norm(a), norm(b));
+}
+function np(p)  { return (p||'').replace(/\s/g,'').toLowerCase(); }
+// CP กับ FMC ใช้ตัวพิมพ์ไม่ตรงกันสำหรับค่า "ทั้งหมด" (CP/ค่า fallback ในนี้ใช้
+// "Any" ตัวใหญ่ แต่ FMC บาง field เช่น Users ส่งมาเป็น "any" ตัวเล็ก) — ถ้าเทียบ
+// แบบ exact-match ตัวพิมพ์ตรงๆ (.includes('Any')) จะไม่ match กันทำให้ขึ้น
+// Mismatch ปลอมทั้งที่ทั้งคู่หมายถึง "ทั้งหมด" เหมือนกัน จึงต้องเทียบแบบไม่สนตัวพิมพ์
+function isAny(v) { return (v||'').trim().toLowerCase() === 'any'; }
+function amatch(a, b) {
+  if (!a || !b) return false;
+  const aAny = a.some(isAny), bAny = b.some(isAny);
+  if (aAny && bAny) return true;
+  if (aAny !== bAny) return false;
+  const sa = new Set(a.map(nk)), sb = new Set(b.map(nk));
+  if (sa.size !== sb.size) return false;
+  for (const v of sa) if (!sb.has(v)) return false;
+  return true;
+}
+function aeq(ca, fa) {
+  const c = (ca||'').toLowerCase(), f = (fa||'').toLowerCase();
+  if (c === f) return true;
+  if (c === 'accept' && ['allow','permit'].includes(f)) return true;
+  if (c === 'drop'   && ['deny','block','reject'].includes(f)) return true;
+  return false;
+}
+
+// ── Summary & badges ──────────────────────────────────────────────────────────
+function updateSummary() {
+  const res = RES[curSec] || [];
+  const cnt = { ok:0, missing:0, mismatch:0, extra:0, skip:0 };
+  res.forEach(r => cnt[r.status] = (cnt[r.status]||0) + 1);
+  document.getElementById('c-ok').textContent = cnt.ok.toLocaleString();
+  document.getElementById('c-ms').textContent = cnt.missing.toLocaleString();
+  document.getElementById('c-mm').textContent = cnt.mismatch.toLocaleString();
+  document.getElementById('c-ex').textContent = cnt.extra.toLocaleString();
+  document.getElementById('c-sk').textContent = cnt.skip.toLocaleString();
+  const nOrd = res.filter(r => r.orderBad).length;
+  const nSpl = res.filter(r => (r.fmc?.parts||1) > 1).length;
+  document.getElementById('c-or').textContent  = curSec === 'policy' ? nOrd.toLocaleString() : '—';
+  document.getElementById('rn-or').textContent = nOrd.toLocaleString();
+  document.getElementById('rn-sp').textContent = nSpl.toLocaleString();
+  // แท็บ Order / Split ใช้ได้เฉพาะ Security Policy — section อื่นไม่มีแนวคิดเรื่องลำดับ
+  const showPol = curSec === 'policy' ? 'block' : 'none';
+  document.getElementById('rtab-order').style.display = showPol;
+  document.getElementById('rtab-split').style.display = showPol;
+  document.getElementById('rn-all').textContent  = res.length.toLocaleString();
+  document.getElementById('rn-miss').textContent = cnt.missing.toLocaleString();
+  document.getElementById('rn-mm').textContent   = cnt.mismatch.toLocaleString();
+  document.getElementById('rn-ok').textContent   = cnt.ok.toLocaleString();
+  document.getElementById('rn-ex').textContent   = cnt.extra.toLocaleString();
+}
+function updateSecBadge(sec, res) {
+  const el = document.getElementById('sc-' + sec);
+  if (!res) { el.textContent = (CP[sec]||[]).length || '—'; el.className = 'stab-cnt'; return; }
+  const miss = res.filter(r => r.status === 'missing').length;
+  const mm   = res.filter(r => r.status === 'mismatch').length;
+  el.textContent = res.length.toLocaleString();
+  el.className   = 'stab-cnt' + (miss > 0 ? ' red' : mm > 0 ? ' yel' : '');
+}
+function resetRight() {
+  ['ok','ms','mm','ex','sk','or'].forEach(id => document.getElementById('c-'+id).textContent = '—');
+  ['all','miss','mm','ok','ex','or','sp'].forEach(id => document.getElementById('rn-'+id).textContent = '0');
+  document.getElementById('result').innerHTML = '<div id="placeholder"><div class="icon">⚖</div><p>โหลด FMC data แล้วกด เปรียบเทียบ</p></div>';
+  document.getElementById('toolbar').style.display = 'none';
+}
+
+// ── Result tabs ───────────────────────────────────────────────────────────────
+function showTab(tab) {
+  curTab = tab; openDetRow = -1;
+  document.querySelectorAll('.rtab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  renderTable();
+}
+function filterTable() { renderTable(); }
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const sec = curSec, res = RES[sec] || [];
+  if (!res.length) return;
+  const q   = (document.getElementById('search').value || '').toLowerCase();
+  let rows  = res.filter(r => curTab === 'all' ? true
+    : curTab === 'order' ? !!r.orderBad
+    : curTab === 'split' ? (r.fmc?.parts||1) > 1
+    : r.status === curTab);
+  // แท็บลำดับผิด: เรียงตามเลข CP เพื่อให้เห็นว่า rule ควรอยู่ตรงไหนตามลำดับต้นทาง
+  if (curTab === 'order') rows = rows.slice().sort((a,b) => (a.order?.cpSeq||0) - (b.order?.cpSeq||0));
+  if (q) rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(q));
+  document.getElementById('tcnt').textContent = rows.length.toLocaleString() + ' รายการ';
+
+  const STBADGE = { ok:'<span class="stbadge st-ok">✓ Match</span>', missing:'<span class="stbadge st-miss">✗ Missing</span>',
+    mismatch:'<span class="stbadge st-mm">⚠ Mismatch</span>', extra:'<span class="stbadge st-ex">+ Extra</span>', skip:'<span class="stbadge st-skip">— Skip</span>' };
+
+  let th = '', html = '';
+
+  if (sec === 'policy') {
+    th = '<tr><th>Status</th><th title="เลข Rule ฝั่ง Check Point">CP #</th><th title="ตำแหน่งจริงใน FMC (ruleIndex)">FMC #</th><th>Name</th><th>CP Act</th><th>FMC Act</th><th>Source</th><th>Dest</th><th>Service</th><th>Diff</th></tr>';
+    html = rows.map((r,i) => {
+      const cp = r.cp, fm = r.fmc;
+      const sd = r.diffs.some(d=>d.f==='Source'), dd = r.diffs.some(d=>d.f==='Dest'), vd = r.diffs.some(d=>d.f==='Service');
+      const parts = fm?.parts || 1;
+      const ordBad = !!r.orderBad;
+      const fmcCell = fm ? (parts > 1 ? `${fm.num}–${fm.numMax}` : String(fm.num)) : '—';
+      const flags = (ordBad ? `<span class="stbadge st-ord" title="ลำดับไม่ตรงกับ CP: ควรอยู่ลำดับที่ ${r.order?.cpSeq} แต่ FMC วางไว้ตำแหน่ง ${r.order?.fmcSeq} (${r.order?.moved==='up'?'เลื่อนขึ้นมาก่อน':'ตกไปอยู่หลัง'} ข้าม ${r.order?.jumped} rule)">⇅ Order</span>` : '')
+        + (parts > 1 ? `<span class="stbadge st-splt" title="FMT แยก CP rule นี้เป็น ${parts} rule: ${esc(fm.partNames.join(', '))} — รวม object ทั้งหมดแล้วเทียบเป็นก้อนเดียว">⧉ ${parts} parts</span>` : '');
+      return `<tr onclick="togDet(${i})"><td>${STBADGE[r.status]}${flags}</td>
+        <td style="font-family:monospace;color:var(--cp);font-size:10px">${cp?.num??'—'}</td>
+        <td style="font-family:monospace;font-size:10px;color:${ordBad?'#f472b6':'var(--muted)'}">${fmcCell}</td>
+        <td style="color:#94a3b8;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cp?.name||fm?.name||'')}</td>
+        <td class="act-${cp?.action}">${cp?cp.action.toUpperCase():'—'}</td>
+        <td class="act-${fm?.action}">${fm?fm.action.toUpperCase():'—'}</td>
+        <td>${pills(cp?.src,sd,CP.objects)}</td><td>${pills(cp?.dst,dd,CP.objects)}</td><td>${pills(cp?.svc,vd,CP.services)}</td>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.f).join(', ')}${ordBad?(r.diffs.length?', ':'')+'<span style="color:#f472b6">Order</span>':''}</td></tr>
+        <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="10" style="padding:0">${detPanel(r,sec)}</td></tr>`;
+    }).join('');
+
+  } else if (sec === 'nat') {
+    th = '<tr><th>Status</th><th>#</th><th>Type</th><th>Orig Src</th><th>Trans Src</th><th>Orig Dst</th><th>Trans Dst</th><th>Diff</th></tr>';
+    html = rows.map((r,i) => {
+      const cp = r.cp, fm = r.fmc;
+      return `<tr onclick="togDet(${i})"><td>${STBADGE[r.status]}</td>
+        <td style="font-family:monospace;color:var(--muted);font-size:10px">${cp?.num??fm?.num??'?'}</td>
+        <td style="color:#a78bfa;font-size:10px">${cp?.natType||fm?.natType||'—'}</td>
+        <td><span class="pill${r.diffs.some(d=>d.f==='Orig Src')?' pill-diff':''}">${esc(cp?.origSrc||'Any')}</span></td>
+        <td><span class="pill${r.diffs.some(d=>d.f==='Trans Src')?' pill-diff':''}">${esc(cp?.transSrc||'Original')}</span></td>
+        <td><span class="pill${r.diffs.some(d=>d.f==='Orig Dst')?' pill-diff':''}">${esc(cp?.origDst||'Any')}</span></td>
+        <td><span class="pill${r.diffs.some(d=>d.f==='Trans Dst')?' pill-diff':''}">${esc(cp?.transDst||'Original')}</span></td>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.f).join(', ')}</td></tr>
+        <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="8" style="padding:0">${detPanel(r,sec)}</td></tr>`;
+    }).join('');
+
+  } else if (sec === 'objects') {
+    th = '<tr><th>Status</th><th>Name</th><th>Type</th><th>CP Value</th><th>FMC Value</th><th>Diff</th></tr>';
+    html = rows.map((r,i) => {
+      const cp = r.cp, fm = r.fmc, vd = r.diffs.some(d=>d.f==='Value/IP');
+      return `<tr onclick="togDet(${i})"><td>${STBADGE[r.status]}</td>
+        <td style="color:var(--txt);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cp?.name||fm?.name||'?')}</td>
+        <td style="font-size:10px;color:var(--muted)">${cp?.type||fm?.type||'—'}</td>
+        <td style="font-family:monospace;font-size:10px;color:${vd?'var(--warn)':'var(--txt)'}">${esc(cp?.value||'—')}</td>
+        <td style="font-family:monospace;font-size:10px;color:${vd?'var(--warn)':'var(--fmc)'}">${esc(fm?.value||'—')}</td>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.f).join(', ')}</td></tr>
+        <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="6" style="padding:0">${detPanel(r,sec)}</td></tr>`;
+    }).join('');
+
+  } else {
+    th = '<tr><th>Status</th><th>Name</th><th>Type</th><th>CP Port</th><th>FMC Port</th><th>Diff</th></tr>';
+    html = rows.map((r,i) => {
+      const cp = r.cp, fm = r.fmc, pd = r.diffs.some(d=>d.f==='Port');
+      return `<tr onclick="togDet(${i})"><td>${STBADGE[r.status]}</td>
+        <td style="color:var(--txt)">${esc(cp?.name||fm?.name||'?')}</td>
+        <td style="font-size:10px;color:var(--muted)">${cp?.type||fm?.type||'—'}</td>
+        <td style="font-family:monospace;font-size:10px;color:${pd?'var(--warn)':'var(--txt)'}">${esc(cp?.port||'—')}</td>
+        <td style="font-family:monospace;font-size:10px;color:${pd?'var(--warn)':'var(--fmc)'}">${esc(fm?.port||'—')}</td>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.f).join(', ')}</td></tr>
+        <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="6" style="padding:0">${detPanel(r,sec)}</td></tr>`;
+    }).join('');
+  }
+
+  document.getElementById('result').innerHTML = `<table id="result-table"><thead>${th}</thead><tbody>${html}</tbody></table>`;
+}
+
+// เช็คว่าชื่อ object/service ที่ policy rule อ้างถึง มีอยู่จริงในฐานข้อมูล
+// Object/Service ที่อัปโหลดไหม (เทียบทั้งชื่อเต็มตรงเป๊ะและ nk() แบบ fuzzy) —
+// ถ้าไม่มี list ให้เช็ค (ยังไม่ได้อัปโหลด Network/Service Objects) ถือว่า "ไม่ทราบ"
+// ไม่ฟันธงว่าไม่มีจริง (กันโชว์สีแดงมั่วตอนไม่มีข้อมูลเทียบ)
+function objExists(name, list) {
+  if (!name || isAny(name)) return true;
+  if (!list || !list.length) return true;
+  const fk = normFull(name);
+  if (list.some(o => normFull(o.name) === fk)) return true;
+  const zk = nk(name);
+  return list.some(o => nk(o.name) === zk);
+}
+function pills(arr, isDiff, checkList) {
+  if (!arr) return '';
+  const cls = v => {
+    if (isAny(v)) return ' pill-any';
+    if (checkList && !objExists(v, checkList)) return ' pill-missing';
+    if (isDiff) return ' pill-diff';
+    return '';
+  };
+  return arr.slice(0,3).map(v => `<span class="pill${cls(v)}" title="${!objExists(v,checkList)?'ไม่พบ object นี้ในฐานข้อมูลที่อัปโหลด':''}">${esc(v)}</span>`).join('') +
+    (arr.length>3 ? `<span class="pill">+${arr.length-3}</span>` : '');
+}
+
+// รายการ (Source/Dest/Service ของ Security Policy) อาจมีหลักร้อยรายการ — เดิม
+// detPanel ตัดข้อความที่ 100 ตัวอักษรทำให้มองไม่เห็นว่ารายการไหนต่างกันจริง เมื่อ
+// list ยาวมาก (เช่น +99 รายการ) จึงเพิ่ม arrDiff() หาว่ารายการไหนมีเฉพาะฝั่งเดียว
+// (เทียบด้วย nk() แบบเดียวกับที่ใช้จับคู่ policy source/dest/service) แล้วโชว์แยก
+// ให้เห็นชัดแทนที่จะต้องไล่เทียบ list เต็มสองฝั่งด้วยตาเอง
+function arrDiff(a, b) {
+  const sb = new Set((b||[]).map(nk));
+  return (a||[]).filter(x => !sb.has(nk(x)));
+}
+// itemPill: render รายชื่อทีละตัวเป็น pill แยก แทนการต่อเป็น string เดียว เพื่อให้
+// ไฮไลต์สีแดงเฉพาะตัวที่ objExists() หาไม่เจอในฐานข้อมูล Object/Service ที่อัปโหลด
+// (ไม่มีอยู่จริง) แยกจากสีส้ม/ฟ้าที่แปลว่า "แค่มีอยู่ฝั่งเดียว" เฉยๆ
+function itemPill(name, checkList) {
+  const missing = !objExists(name, checkList);
+  const cls = isAny(name) ? ' pill-any' : missing ? ' pill-missing' : '';
+  const title = missing ? ' title="ไม่พบ object นี้ในฐานข้อมูลที่อัปโหลด"' : '';
+  return `<span class="pill${cls}"${title}>${esc(name)}</span>`;
+}
+function dfList(k, cvArr, fvArr, cpCheckList, fmCheckList) {
+  const cv = cvArr||[], fv = fvArr||[];
+  const onlyCp = arrDiff(cv, fv), onlyFm = arrDiff(fv, cv);
+  const d = onlyCp.length || onlyFm.length;
+  let extra = '';
+  if (onlyCp.length) extra += `<div style="margin-top:3px;padding-left:81px;color:var(--warn);font-size:9.5px">มีเฉพาะฝั่ง CP (${onlyCp.length}): ${onlyCp.map(n=>itemPill(n,cpCheckList)).join(' ')}</div>`;
+  if (onlyFm.length) extra += `<div style="margin-top:3px;padding-left:81px;color:var(--fmc);font-size:9.5px">มีเฉพาะฝั่ง FMC (${onlyFm.length}): ${onlyFm.map(n=>itemPill(n,fmCheckList)).join(' ')}</div>`;
+  return `<div class="det-field" style="flex-direction:column;align-items:stretch">
+    <div style="display:flex;gap:6px">
+      <span class="det-key">${k}</span>
+      <span class="det-val${d?' diff':''}" style="word-break:break-word;flex:1">${cv.length?cv.map(n=>itemPill(n,cpCheckList)).join(' '):'—'} <span style="color:var(--muted)">(${cv.length})</span> /
+        <span style="color:var(--fmc)">${fv.length?fv.map(n=>itemPill(n,fmCheckList)).join(' '):'—'} (${fv.length})</span>
+      </span>
+    </div>${extra}</div>`;
+}
+function detPanel(r, sec) {
+  const cp = r.cp, fm = r.fmc;
+  const df = (k,cv,fv) => {
+    const d = cv !== fv && cv && fv;
+    return `<div class="det-field"><span class="det-key">${k}</span><span class="det-val${d?' diff':''}">${esc(String(cv||'—').substring(0,100))} / <span style="color:var(--fmc)">${esc(String(fv||'—').substring(0,100))}</span></span></div>`;
+  };
+  let fields = '';
+  if (sec==='policy')  fields = df('ลำดับ (CP/FMC)', cp?.num, fm ? ((fm.parts||1)>1 ? fm.num+'–'+fm.numMax : fm.num) : null)
+    + (r.order && !r.order.ok ? `<div class="det-field"><span class="det-key">Order</span><span class="det-val diff" style="color:#f472b6">⇅ ลำดับไม่ตรงกับ CP — CP ลำดับที่ ${r.order.cpSeq} แต่ FMC วางไว้ตำแหน่ง ${r.order.fmcSeq} (${r.order.moved==='up'?'เลื่อนขึ้นมาก่อน rule ที่ควรมาก่อน — เสี่ยงบัง (shadow) rule อื่น':'ตกไปอยู่หลัง rule ที่ควรตามหลัง — เสี่ยงถูก rule อื่นบัง'}, ข้าม ${r.order.jumped} rule)</span></div>` : '')
+    + ((fm?.parts||1)>1 ? `<div class="det-field"><span class="det-key">FMT Split</span><span class="det-val" style="color:#7dd3fc">⧉ FMT แยก CP rule นี้เป็น ${fm.parts} rule (object เกินเพดานต่อ rule) — รวม object ทุกส่วนแล้วเทียบเป็นก้อนเดียว<br><span style="color:var(--muted)">${esc(fm.partNames.join('  |  '))}</span></span></div>` : '')
+    + df('Action',(cp?.action||'').toUpperCase(),(fm?.action||'').toUpperCase())+dfList('Source',cp?.src,fm?.src,CP.objects,FMC.objects)+dfList('Dest',cp?.dst,fm?.dst,CP.objects,FMC.objects)+dfList('Service',cp?.svc,fm?.svc,CP.services,FMC.services)+df('Status',cp?.disabled?'DISABLED':'ENABLED',fm?.enabled?'ENABLED':'DISABLED');
+  if (sec==='nat')     fields = df('#',cp?.num,fm?.num)+df('Type',cp?.natType,fm?.natType)+df('Orig Src',cp?.origSrc,fm?.origSrc)+df('Trans Src',cp?.transSrc,fm?.transSrc)+df('Orig Dst',cp?.origDst,fm?.origDst)+df('Trans Dst',cp?.transDst,fm?.transDst);
+  if (sec==='objects') fields = df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Value',cp?.value,fm?.value);
+  if (sec==='services')fields = df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Port',cp?.port,fm?.port);
+  return `<div class="det-inner"><div class="det-hdr"><span style="color:var(--cp);font-weight:700">CHECK POINT</span><span style="color:var(--fmc);font-weight:700">CISCO FMC</span></div>${fields}</div>`;
+}
+
+function togDet(i) {
+  const el = document.getElementById('det-' + i); if (!el) return;
+  const open = el.style.display !== 'none';
+  if (openDetRow >= 0 && openDetRow !== i) { const prev = document.getElementById('det-' + openDetRow); if (prev) prev.style.display = 'none'; }
+  el.style.display = open ? 'none' : '';
+  openDetRow = open ? -1 : i;
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const sec = curSec, res = RES[sec] || [];
+  const H = { policy:['Status','CP_Seq','FMC_Seq','Order_OK','Order_Note','FMT_Parts','FMC_Rule_Names','Name','CP_Action','FMC_Action','CP_Src','CP_Dst','CP_Svc','FMC_Src','FMC_Dst','FMC_Svc','Diff'],
+              nat:    ['Status','#','CP_Type','CP_OrigSrc','CP_TransSrc','CP_OrigDst','CP_TransDst','Diff'],
+              objects:['Status','Name','CP_Type','CP_Value','FMC_Type','FMC_Value','Diff'],
+              services:['Status','Name','CP_Type','CP_Port','FMC_Type','FMC_Port','Diff'] };
+  const M = {
+    policy:  r => [r.status, r.cp?.num ?? '', r.fmc ? ((r.fmc.parts||1)>1 ? r.fmc.num+'-'+r.fmc.numMax : r.fmc.num) : '',
+      r.order ? (r.order.ok ? 'OK' : 'OUT_OF_ORDER') : '',
+      r.order && !r.order.ok ? `CP ลำดับ ${r.order.cpSeq} -> FMC ตำแหน่ง ${r.order.fmcSeq} (${r.order.moved==='up'?'เลื่อนขึ้น':'เลื่อนลง'}, ข้าม ${r.order.jumped} rule)` : '',
+      r.fmc?.parts||'', (r.fmc?.partNames||[]).join(' | '),
+      r.cp?.name||'', r.cp?.action?.toUpperCase()||'', r.fmc?.action?.toUpperCase()||'',
+      (r.cp?.src||[]).join('; '),(r.cp?.dst||[]).join('; '),(r.cp?.svc||[]).join('; '),
+      (r.fmc?.src||[]).join('; '),(r.fmc?.dst||[]).join('; '),(r.fmc?.svc||[]).join('; '),
+      r.diffs.map(d=>d.f).join(', ') + (r.orderBad ? (r.diffs.length?', ':'') + 'Order' : '')],
+    nat:     r => [r.status,r.cp?.num??r.fmc?.num,r.cp?.natType||'',r.cp?.origSrc||'',r.cp?.transSrc||'',r.cp?.origDst||'',r.cp?.transDst||'',r.diffs.map(d=>d.f).join(', ')],
+    objects: r => [r.status,r.cp?.name||r.fmc?.name||'',r.cp?.type||'',r.cp?.value||'',r.fmc?.type||'',r.fmc?.value||'',r.diffs.map(d=>d.f).join(', ')],
+    services:r => [r.status,r.cp?.name||r.fmc?.name||'',r.cp?.type||'',r.cp?.port||'',r.fmc?.type||'',r.fmc?.port||'',r.diffs.map(d=>d.f).join(', ')],
+  };
+  const csv = [H[sec], ...res.map(M[sec])].map(row => row.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  dlFile(`compare_${sec}.csv`, '﻿' + csv, 'text/csv;charset=utf-8');
+}
+
+// FMC bulk endpoint ไม่รับ JSON array มาตรฐาน — ต้องเป็น object ต่อกันตรงๆ โดยไม่มี comma/[] คั่น
+// (ทดสอบแล้ว: มี comma คั่นระหว่าง object = FMC error 422 "Unexpected character (',')")
+function toBulkBody(arr) {
+  return arr.map(o => JSON.stringify(o, null, 2)).join('\n');
+}
+
+function exportJSON() {
+  const sec = curSec, missing = (RES[sec]||[]).filter(r => r.status === 'missing');
+
+  if (sec === 'objects') {
+    // FMC ต้อง POST แยก endpoint ตาม type — ห้ามรวมไฟล์เดียว
+    const hosts = [], nets = [], ranges = [], groups = [];
+    missing.forEach(r => {
+      const t = r.cp?.type || '', name = r.cp?.name || '', v = r.cp?.value || '';
+      if (t === 'host') hosts.push({ name, value:v.split('/')[0], type:'Host' });
+      else if (t === 'network') nets.push({ name, value:v, type:'Network' });
+      else if (t === 'range') {
+        const [f,l] = v.split('–').map(s=>s.trim());
+        ranges.push({ name, value:`${f}-${l}`, type:'Range' });
+      } else if (t === 'group') {
+        groups.push({ name, type:'NetworkGroup', members:v?v.split(';').map(s=>s.trim()).filter(Boolean):[] });
+      } else {
+        // ไม่ทราบ type แน่ชัด — เดาแบบเดิมจาก prefix เป็น fallback
+        const pfx = parseInt(v.split('/')[1]||'32');
+        if (pfx === 32) hosts.push({ name, value:v.split('/')[0], type:'Host' });
+        else nets.push({ name, value:v, type:'Network' });
+      }
+    });
+    if (hosts.length)  dlFile('bulk_missing_hosts.json',    toBulkBody(hosts),  'application/json');
+    if (nets.length)   dlFile('bulk_missing_networks.json', toBulkBody(nets),   'application/json');
+    if (ranges.length) dlFile('bulk_missing_ranges.json',   toBulkBody(ranges), 'application/json');
+    if (groups.length) dlFile('bulk_missing_groups.json',   toBulkBody(groups), 'application/json');
+    if (!hosts.length && !nets.length && !ranges.length && !groups.length) alert('ไม่มีรายการ Missing ให้ export');
+    return;
+  }
+
+  let bulk = [];
+  if (sec === 'services') {
+    // FMC ไม่มี endpoint /object/tcpportobjects หรือ /object/udpportobjects แยก —
+    // ใช้ /object/protocolportobjects เดียว (type: ProtocolPortObject) แยก TCP/UDP
+    // ด้วย field protocol แทน (ยืนยันแล้วบน FMC 7.6.5 — endpoint แยกได้ 404)
+    bulk = missing.filter(r => ['tcp','udp'].includes(r.cp?.type||'')).map(r => ({
+      name:r.cp?.name, port:r.cp?.port, protocol:r.cp?.type==='udp'?'UDP':'TCP', type:'ProtocolPortObject' }));
+  } else if (sec === 'policy') {
+    bulk = missing.map(r => ({ name:r.cp?.name||'', action:r.cp?.action==='accept'?'ALLOW':'BLOCK', enabled:!r.cp?.disabled, type:'AccessRule' }));
+  } else if (sec === 'nat') {
+    bulk = missing.map(r => ({ type:'FTDManualNatRule', enabled:true, natType:(r.cp?.natType||'static').toUpperCase() }));
+  }
+  dlFile(`bulk_missing_${sec}.json`, toBulkBody(bulk), 'application/json');
+}
+
+function dlFile(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+}
+
+// ── Ready check ───────────────────────────────────────────────────────────────
+function checkReady() {
+  const hasCp  = CP[curSec].length > 0;
+  const hasFmc = FMC[curSec].length > 0;
+  document.getElementById('btn-run').disabled = !(hasCp && hasFmc);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
