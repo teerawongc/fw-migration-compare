@@ -62,6 +62,29 @@ console.log('\n=== v3.7.0 · ลำดับ rule ไม่ตรง (flag เ�
   ok('เนื้อหาตรงกันยังนับเป็น Match', bad[0]?.status === 'ok');
 }
 
+console.log('\n=== v3.9.2 · ตำแหน่งเลื่อนเพราะ split ต้องไม่ถูกมองว่าลำดับผิด ===');
+{
+  // CP 1..300 เรียงถูกทุกตัว แต่ rule 50/120/200 ถูกหั่นเป็น 2 ส่วน
+  // ทำให้ CP#300 ไปตกตำแหน่ง 303 — เลขไม่ตรงกันแต่ลำดับไม่ได้ผิด
+  const cp = [], fmc = []; let pos = 1;
+  for (let n = 1; n <= 300; n++) {
+    cp.push(CP({ num:n, src:['A'], svc:['S'+n] }));
+    const parts = [50,120,200].includes(n) ? 2 : 1;
+    for (let j = 1; j <= parts; j++)
+      fmc.push(FM({ num:pos++, name:'Rule_#'+n+(parts>1?'-'+j:''), src:['A'], svc:['S'+n] }));
+  }
+  const r = run(cp, fmc);
+  const r300 = r.find(x => x.cp?.num === 300);
+  ok('CP#300 จับคู่กับตำแหน่ง 303', r300.fmc.num === 303);
+  ok('ไม่ถูก flag ว่าลำดับผิด', !r300.orderBad);
+  ok('ทั้ง section ไม่มี rule ไหนถูก flag เลย', r.filter(x => x.orderBad).length === 0);
+  // หน้าจอต้องไม่ระบายสีเตือนช่องลำดับ เมื่อลำดับไม่ได้ผิดจริง
+  const panel = w.eval(`detPanel(RES.policy.find(x=>x.cp&&x.cp.num===300),'policy')`);
+  const posRow = panel.slice(panel.indexOf('ลำดับ (CP/FMC)'), panel.indexOf('ลำดับ (CP/FMC)') + 260);
+  ok('ช่องลำดับไม่ติด class diff (ไม่ระบายสีเตือน)', !posRow.includes('det-val diff'));
+  ok('มีคำอธิบายว่าตำแหน่งเลื่อนเพราะ split', panel.includes('ลำดับสัมพัทธ์ยังถูกต้อง'));
+}
+
 console.log('\n=== v3.9.0 · Any vs any ===');
 {
   const r = run([CP({ num:3, src:['Client_10.18.3.195'], dst:['Any'] })],
@@ -96,6 +119,16 @@ console.log('\n=== v3.9.0 · suffix ที่ FMT เติมตอน rename =
 
   r = run([CP({ num:9, svc:['S_A'] })], [FM({ num:9, name:'Rule_#9', svc:['S_A_CP'] })], '-CP, _CP');
   ok('รองรับหลาย suffix คั่นด้วย ,', r[0].status === 'review');
+
+  // เคสจริงจากหน้างาน: ตั้งไว้ "-CP" แต่ของจริงเป็น "_CP" (ขีดล่าง)
+  r = run([CP({ num:300, svc:['GHB_AD2011_Service','GHB_TCP_Service_464'] })],
+          [FM({ num:303, name:'Rule_#300', svc:['GHB_AD2011_Service_CP','GHB_TCP_Service_464'] })], '-CP');
+  ok('ตั้ง -CP ต้องจับ _CP ได้ด้วย (ตัวคั่นไม่สำคัญ)', r[0].status === 'review');
+  r = run([CP({ num:11, svc:['S_A'] })], [FM({ num:11, name:'Rule_#11', svc:['S_A.CP'] })], '-CP');
+  ok('ตั้ง -CP ต้องจับ .CP ได้ด้วย', r[0].status === 'review');
+  // ต้องตัดเฉพาะท้ายชื่อ ไม่ใช่เจอ CP ตรงไหนก็ตัด
+  r = run([CP({ num:12, svc:['S_A'] })], [FM({ num:12, name:'Rule_#12', svc:['S_CP_A'] })], '-CP');
+  ok('CP อยู่กลางชื่อ ไม่ถือเป็น suffix → Mismatch', r[0].status === 'mismatch');
 }
 
 console.log('\n=== v3.9.0 · UI ของสถานะ ตรวจซ้ำ ===');

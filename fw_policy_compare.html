@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.9.0</title>
+<title>FW Migration Comparator v3.9.2</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -439,7 +439,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.9.0</span>
+  <span id="ver">v3.9.2</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -903,7 +903,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
     <label class="opt-row"><input type="checkbox" id="o-mrg" checked onchange="if(RES[curSec].length)runCmp()"> รวม rule ที่ FMT แยก (Rule#N-1/-2)</label>
     <label class="opt-row"><input type="checkbox" id="o-ord" checked onchange="if(RES[curSec].length)runCmp()"> ตรวจลำดับ rule (Order)</label>
     <div class="opt-row" style="display:block;cursor:default">
-      <span title="ตอน migrate ถ้าชื่อชนกัน FMT จะบังคับให้เติมอะไรต่อท้าย — ใส่ตรงนี้แล้วชื่อที่ต่างกันแค่ส่วนนี้จะถูกจัดเป็น ตรวจซ้ำ ไม่ใช่ Mismatch">Suffix ที่ FMT เติมตอน rename</span>
+      <span title="ตอน migrate ถ้าชื่อชนกัน FMT จะบังคับให้เติมอะไรต่อท้าย — ใส่ตรงนี้แล้วชื่อที่ต่างกันแค่ส่วนนี้จะถูกจัดเป็น ตรวจซ้ำ ไม่ใช่ Mismatch&#10;ตัวคั่นไม่สำคัญ: ใส่ -CP ตัวเดียวจับ _CP และ .CP ให้ด้วย">Suffix ที่ FMT เติมตอน rename <span style="color:var(--muted);font-size:9px">(- _ . ถือว่าเท่ากัน)</span></span>
       <input type="text" id="o-sfx" value="-CP" placeholder="-CP, _CP" onchange="if(RES[curSec].length)runCmp()"
              style="width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--txt);padding:4px 6px;font-size:11px;font-family:monospace">
     </div>
@@ -956,7 +956,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
 
 <script>
 'use strict';
-const VER = 'v3.9.0';
+const VER = 'v3.9.2';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
@@ -1712,12 +1712,19 @@ function loadSuffixes() {
   SUFFIXES = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
   try { localStorage.setItem('fw_suffix', raw); } catch(e) {}
 }
-// ตัด suffix ออกท้ายชื่อ (ไม่สนตัวพิมพ์) — คืนค่าเดิมถ้าไม่มี suffix ตรงเลย
+// ตัวคั่นถือว่าเท่ากันหมด — ตั้ง "-CP" ไว้ต้องจับ "_CP" และ ".CP" ได้ด้วย
+// (nk() ที่ใช้เทียบชื่อทั่วทั้งเครื่องมือก็ยุบ - _ . เป็นตัวเดียวกันอยู่แล้ว ถ้าตรงนี้
+// ไม่ทำตาม ผู้ใช้จะเจอ Mismatch ปลอมโดยไม่รู้ว่าต้องไปพิมพ์ suffix เพิ่มเอง)
+// แทนที่แบบ 1 ตัวอักษรต่อ 1 ตัวอักษร ความยาวจึงไม่เปลี่ยน slice ด้วย s.length ได้ตรง
+function normSep(s) { return (s || '').replace(/[-_.\s]/g, '_').toLowerCase(); }
+// ตัด suffix ออกท้ายชื่อ — คืนค่าเดิมถ้าไม่มี suffix ตรงเลย
 function stripSuffix(name) {
-  let n = (name || '').trim();
+  const n = (name || '').trim();
+  const nn = normSep(n);
   for (const s of SUFFIXES) {
-    if (!s) continue;
-    if (n.toLowerCase().endsWith(s.toLowerCase())) return n.slice(0, -s.length);
+    const ns = normSep(s);
+    if (!ns) continue;
+    if (nn.endsWith(ns)) return n.slice(0, n.length - s.length);
   }
   return n;
 }
@@ -1962,8 +1969,11 @@ function dfList(k, cvArr, fvArr, cpCheckList, fmCheckList) {
 }
 function detPanel(r, sec) {
   const cp = r.cp, fm = r.fmc;
-  const df = (k,cv,fv) => {
-    const d = cv !== fv && cv && fv;
+  // forceDiff ใช้เมื่อ "ค่าไม่เท่ากัน" ไม่ได้แปลว่าผิด — เช่นเลขลำดับ ที่ต่างกันเป็นเรื่องปกติ
+  // หลัง FMT หั่น rule (CP#300 ไปอยู่ตำแหน่ง 303 เพราะ rule ก่อนหน้าถูกแยก) การระบายสี
+  // เตือนตามเลขไม่ตรงจึงเป็นการเตือนผิด ต้องดูผลตรวจลำดับจริง (orderBad) แทน
+  const df = (k,cv,fv,forceDiff) => {
+    const d = forceDiff !== undefined ? forceDiff : (cv !== fv && cv && fv);
     return `<div class="det-field"><span class="det-key">${k}</span><span class="det-val${d?' diff':''}">${esc(String(cv||'—').substring(0,100))} / <span style="color:var(--fmc)">${esc(String(fv||'—').substring(0,100))}</span></span></div>`;
   };
   // สรุปให้เห็นชัดว่าแถวนี้ขึ้น "ตรวจซ้ำ" เพราะอะไร และคู่ไหนถูก rename
@@ -1974,7 +1984,11 @@ function detPanel(r, sec) {
       : `<span class="pill">${esc(d.cv)}</span> <span style="color:var(--muted)">→</span> <span class="pill pill-review">${esc(d.fv)}</span>`)).join('<br>') +
     `</span></div>` : '';
   let fields = rvNote;
-  if (sec==='policy')  fields += df('ลำดับ (CP/FMC)', cp?.num, fm ? ((fm.parts||1)>1 ? fm.num+'–'+fm.numMax : fm.num) : null)
+  // เลขต่างกันแต่ลำดับสัมพัทธ์ยังถูก = ปกติ ต้องบอกให้ชัด ไม่งั้นคนอ่านจะนึกว่าผิด
+  const posShift = r.order && r.order.ok && r.order.cpSeq !== r.order.fmcSeq
+    ? `<div class="det-field"><span class="det-key"></span><span class="det-val" style="color:var(--muted);font-size:10px">ตำแหน่งเลื่อนไป ${r.order.fmcSeq - r.order.cpSeq > 0 ? '+' : ''}${r.order.fmcSeq - r.order.cpSeq} เพราะ rule ก่อนหน้าถูก FMT หั่นเพิ่ม — ลำดับสัมพัทธ์ยังถูกต้อง ไม่ต้องแก้</span></div>`
+    : '';
+  if (sec==='policy')  fields += df('ลำดับ (CP/FMC)', cp?.num, fm ? ((fm.parts||1)>1 ? fm.num+'–'+fm.numMax : fm.num) : null, !!r.orderBad) + posShift
     + (r.order && !r.order.ok ? `<div class="det-field"><span class="det-key">Order</span><span class="det-val diff" style="color:#f472b6">⇅ ลำดับไม่ตรงกับ CP — CP ลำดับที่ ${r.order.cpSeq} แต่ FMC วางไว้ตำแหน่ง ${r.order.fmcSeq} (${r.order.moved==='up'?'เลื่อนขึ้นมาก่อน rule ที่ควรมาก่อน — เสี่ยงบัง (shadow) rule อื่น':'ตกไปอยู่หลัง rule ที่ควรตามหลัง — เสี่ยงถูก rule อื่นบัง'}, ข้าม ${r.order.jumped} rule)</span></div>` : '')
     + ((fm?.parts||1)>1 ? `<div class="det-field"><span class="det-key">FMT Split</span><span class="det-val" style="color:#7dd3fc">⧉ FMT แยก CP rule นี้เป็น ${fm.parts} rule (object เกินเพดานต่อ rule) — รวม object ทุกส่วนแล้วเทียบเป็นก้อนเดียว<br><span style="color:var(--muted)">${esc(fm.partNames.join('  |  '))}</span></span></div>` : '')
     + df('Action',(cp?.action||'').toUpperCase(),(fm?.action||'').toUpperCase())+dfList('Source',cp?.src,fm?.src,CP.objects,FMC.objects)+dfList('Dest',cp?.dst,fm?.dst,CP.objects,FMC.objects)+dfList('Service',cp?.svc,fm?.svc,CP.services,FMC.services)+df('Status',cp?.disabled?'DISABLED':'ENABLED',fm?.enabled?'ENABLED':'DISABLED');
