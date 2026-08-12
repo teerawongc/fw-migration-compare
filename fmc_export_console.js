@@ -1,5 +1,5 @@
 /* ============================================================================
-   FMC Bulk Export  v1.0  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
+   FMC Bulk Export  v1.1  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
 
    ปัญหาที่แก้: FMC REST API จำกัด limit=1000 ต่อ 1 request ถ้ามี 8,000 object
    ต้องยิงเอง 8 ครั้งแล้วมานั่งรวมไฟล์ — สคริปต์นี้วน offset ให้อัตโนมัติจนครบ
@@ -18,7 +18,7 @@
 (async () => {
 'use strict';
 
-const VER = 'v1.0';
+const VER = 'v1.1';
 const LIMIT = 1000;        // เพดานต่อ request ของ FMC
 const DELAY = 250;         // หน่วงระหว่าง request — FMC จำกัด 120 req/min
 const MAX_PAGES = 200;     // กันลูปไม่รู้จบถ้า API ตอบผิดรูปแบบ
@@ -159,10 +159,18 @@ const SECTIONS = {
     return dedupe(all);
   },
   services: async () => {
-    // protocolportobjects = ทางใหม่ (รวม TCP+UDP), tcp/udpportobjects = ทางเก่า
-    // ยิงทั้งคู่แล้ว dedupe ด้วย id เพื่อให้ใช้ได้ทุกเวอร์ชันโดยไม่ต้องแก้สคริปต์
-    let all = [];
-    for (const e of ['protocolportobjects', 'tcpportobjects', 'udpportobjects', 'icmpv4objects', 'portobjectgroups'])
+    // protocolportobjects = ทางใหม่ (รวม TCP+UDP ในตัวเดียว แยกด้วย field protocol)
+    // tcp/udpportobjects = ทางเก่า ไม่มีแล้วบน FMC 7.x
+    // ยิงตัวใหม่ก่อน ได้ผลแล้วไม่ต้องแตะตัวเก่า — เดิมยิงทั้งหมดแล้วค่อย dedupe
+    // ซึ่งได้ผลถูกต้องแต่ Chrome จะขึ้น 404 สีแดงใน Console 2 บรรทัดทุกครั้ง
+    // (เบราว์เซอร์ log ระดับ network ห้ามไม่ได้แม้โค้ดจะ catch แล้ว) ดูเหมือนพัง
+    let all = await getAll(`${base}/object/protocolportobjects`, 'protocolportobjects');
+    if (!all.length) {
+      warn('  ไม่มี protocolportobjects — ถอยไปใช้ endpoint แยกแบบเก่า');
+      for (const e of ['tcpportobjects', 'udpportobjects'])
+        all = all.concat(await getAll(`${base}/object/${e}`, e));
+    }
+    for (const e of ['icmpv4objects', 'portobjectgroups'])
       all = all.concat(await getAll(`${base}/object/${e}`, e));
     return dedupe(all);
   }

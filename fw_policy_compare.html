@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.8.0</title>
+<title>FW Migration Comparator v3.9.0</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -222,7 +222,7 @@ body.light .stab.active { background: #fff; color: #1e3a5f; border-bottom-color:
 #summary {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 8px;
   padding: 10px 14px;
   background: var(--bg2);
@@ -312,9 +312,14 @@ body.light #result-table thead th { background: #dde5f0; }
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   vertical-align: middle; margin: 1px;
 }
-.pill-any  { color: #f59e0b !important; }
+/* pill-any เคยใช้สีส้ม #f59e0b ซึ่งเป็นสีเดียวกับ --warn และ pill-diff ทำให้
+   "Any" ดูเหมือนคำเตือนว่าต่างกัน ทั้งที่แปลว่า "ทุกค่า" เฉยๆ (Any vs any เทียบ
+   แบบไม่สนตัวพิมพ์อยู่แล้ว = Match) เปลี่ยนเป็นม่วงกลางๆ ให้แยกจากสีเตือนชัดเจน */
+.pill-any  { background: #2e1065 !important; border-color: #5b21b6 !important; color: #c4b5fd !important; }
 .pill-diff { background: #451a03 !important; border-color: #92400e !important; color: #fcd34d !important; }
 .pill-missing { background: #450a0a !important; border-color: #b91c1c !important; color: #fca5a5 !important; font-weight: 700; }
+.pill-review { background: #172554 !important; border-color: #1d4ed8 !important; color: #93c5fd !important; }
+.st-review { background: #172554; color: #93c5fd; }
 
 .act-accept, .act-allow, .act-permit { color: #6ee7b7; font-weight: 700; }
 .act-drop,   .act-deny,  .act-block  { color: #fca5a5; font-weight: 700; }
@@ -434,7 +439,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.8.0</span>
+  <span id="ver">v3.9.0</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -573,7 +578,7 @@ GET /object/portobjectgroups?expanded=true&limit=1000</pre>
 </div>
 
 <script type="text/plain" id="fmc-src">/* ============================================================================
-   FMC Bulk Export  v1.0  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
+   FMC Bulk Export  v1.1  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
 
    ปัญหาที่แก้: FMC REST API จำกัด limit=1000 ต่อ 1 request ถ้ามี 8,000 object
    ต้องยิงเอง 8 ครั้งแล้วมานั่งรวมไฟล์ — สคริปต์นี้วน offset ให้อัตโนมัติจนครบ
@@ -592,7 +597,7 @@ GET /object/portobjectgroups?expanded=true&limit=1000</pre>
 (async () => {
 'use strict';
 
-const VER = 'v1.0';
+const VER = 'v1.1';
 const LIMIT = 1000;        // เพดานต่อ request ของ FMC
 const DELAY = 250;         // หน่วงระหว่าง request — FMC จำกัด 120 req/min
 const MAX_PAGES = 200;     // กันลูปไม่รู้จบถ้า API ตอบผิดรูปแบบ
@@ -733,10 +738,18 @@ const SECTIONS = {
     return dedupe(all);
   },
   services: async () => {
-    // protocolportobjects = ทางใหม่ (รวม TCP+UDP), tcp/udpportobjects = ทางเก่า
-    // ยิงทั้งคู่แล้ว dedupe ด้วย id เพื่อให้ใช้ได้ทุกเวอร์ชันโดยไม่ต้องแก้สคริปต์
-    let all = [];
-    for (const e of ['protocolportobjects', 'tcpportobjects', 'udpportobjects', 'icmpv4objects', 'portobjectgroups'])
+    // protocolportobjects = ทางใหม่ (รวม TCP+UDP ในตัวเดียว แยกด้วย field protocol)
+    // tcp/udpportobjects = ทางเก่า ไม่มีแล้วบน FMC 7.x
+    // ยิงตัวใหม่ก่อน ได้ผลแล้วไม่ต้องแตะตัวเก่า — เดิมยิงทั้งหมดแล้วค่อย dedupe
+    // ซึ่งได้ผลถูกต้องแต่ Chrome จะขึ้น 404 สีแดงใน Console 2 บรรทัดทุกครั้ง
+    // (เบราว์เซอร์ log ระดับ network ห้ามไม่ได้แม้โค้ดจะ catch แล้ว) ดูเหมือนพัง
+    let all = await getAll(`${base}/object/protocolportobjects`, 'protocolportobjects');
+    if (!all.length) {
+      warn('  ไม่มี protocolportobjects — ถอยไปใช้ endpoint แยกแบบเก่า');
+      for (const e of ['tcpportobjects', 'udpportobjects'])
+        all = all.concat(await getAll(`${base}/object/${e}`, e));
+    }
+    for (const e of ['icmpv4objects', 'portobjectgroups'])
       all = all.concat(await getAll(`${base}/object/${e}`, e));
     return dedupe(all);
   }
@@ -889,6 +902,11 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
     <label class="opt-row"><input type="checkbox" id="o-st"  checked> เช็ค Enable/Disable</label>
     <label class="opt-row"><input type="checkbox" id="o-mrg" checked onchange="if(RES[curSec].length)runCmp()"> รวม rule ที่ FMT แยก (Rule#N-1/-2)</label>
     <label class="opt-row"><input type="checkbox" id="o-ord" checked onchange="if(RES[curSec].length)runCmp()"> ตรวจลำดับ rule (Order)</label>
+    <div class="opt-row" style="display:block;cursor:default">
+      <span title="ตอน migrate ถ้าชื่อชนกัน FMT จะบังคับให้เติมอะไรต่อท้าย — ใส่ตรงนี้แล้วชื่อที่ต่างกันแค่ส่วนนี้จะถูกจัดเป็น ตรวจซ้ำ ไม่ใช่ Mismatch">Suffix ที่ FMT เติมตอน rename</span>
+      <input type="text" id="o-sfx" value="-CP" placeholder="-CP, _CP" onchange="if(RES[curSec].length)runCmp()"
+             style="width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--txt);padding:4px 6px;font-size:11px;font-family:monospace">
+    </div>
   </div>
 
   <button id="btn-run" onclick="runCmp()" disabled>▶ เปรียบเทียบ</button>
@@ -904,6 +922,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
     <div class="scard in"><div class="scard-num" id="c-ex">—</div><div class="scard-lbl" id="lbl-extra">+ Extra FMC</div></div>
     <div class="scard pu"><div class="scard-num" id="c-sk">—</div><div class="scard-lbl">— Skip</div></div>
     <div class="scard or"><div class="scard-num" id="c-or">—</div><div class="scard-lbl">⇅ Order ผิด</div></div>
+    <div class="scard in"><div class="scard-num" id="c-rv">—</div><div class="scard-lbl">⚑ ตรวจซ้ำ</div></div>
   </div>
 
   <div id="rtabs">
@@ -912,6 +931,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
     <div class="rtab"        data-tab="mismatch" onclick="showTab('mismatch')">Mismatch <span class="rtab-cnt" id="rn-mm">0</span></div>
     <div class="rtab"        data-tab="ok"       onclick="showTab('ok')">Match <span class="rtab-cnt" id="rn-ok">0</span></div>
     <div class="rtab"        data-tab="extra"    onclick="showTab('extra')"><span id="lbl-tab-ex">Extra FMC</span> <span class="rtab-cnt" id="rn-ex">0</span></div>
+    <div class="rtab"        data-tab="review"   onclick="showTab('review')">⚑ ตรวจซ้ำ <span class="rtab-cnt" id="rn-rv">0</span></div>
     <div class="rtab" id="rtab-order" data-tab="order" onclick="showTab('order')">⇅ ลำดับผิด <span class="rtab-cnt" id="rn-or">0</span></div>
     <div class="rtab" id="rtab-split" data-tab="split" onclick="showTab('split')">⧉ Rule ที่ถูกแยก <span class="rtab-cnt" id="rn-sp">0</span></div>
   </div>
@@ -936,7 +956,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
 
 <script>
 'use strict';
-const VER = 'v3.8.0';
+const VER = 'v3.9.0';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
@@ -955,6 +975,8 @@ const SEC_NAMES = { policy:'Security Policy', nat:'NAT Policy', objects:'Network
 window.addEventListener('DOMContentLoaded', function() {
   document.getElementById('ver').textContent = VER;
   try { if (localStorage.getItem('fw_theme') === 'light') applyTheme('light'); } catch(e) {}
+  try { const sfx = localStorage.getItem('fw_suffix'); if (sfx !== null) document.getElementById('o-sfx').value = sfx; } catch(e) {}
+  loadSuffixes();
   document.getElementById('fmc-paste').addEventListener('input', function() {
     const raw = this.value.trim();
     if (!raw) return;
@@ -1302,6 +1324,7 @@ function runCmp() {
   const chkSt   = document.getElementById('o-st').checked;
   const chkMrg  = document.getElementById('o-mrg').checked;
   const chkOrd  = document.getElementById('o-ord').checked;
+  loadSuffixes();
   const isCp    = dir === 'cp2fmc';
   const res = [];
 
@@ -1325,12 +1348,21 @@ function runCmp() {
       if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
       if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
       const diffs = [];
+      // ต่างเพราะ FMT เติม suffix ตอน rename → ติดธง review ไม่นับเป็นความผิดพลาด
+      const addList = (on, f, ca, fa) => {
+        if (!on || !cp || !fm) return;
+        const r = amatchEx(ca, fa);
+        if (r.match) return;
+        diffs.push({ f, cv:(ca||[]).join('; '), fv:(fa||[]).join('; '), review:r.suffixOnly, pairs:r.pairs });
+      };
       if (chkAct && cp && fm && !aeq(cp.action, fm.action)) diffs.push({ f:'Action', cv:cp.action.toUpperCase(), fv:fm.action.toUpperCase() });
-      if (chkSrc && cp && fm && !amatch(cp.src, fm.src)) diffs.push({ f:'Source', cv:(cp.src||[]).join('; '), fv:(fm.src||[]).join('; ') });
-      if (chkDst && cp && fm && !amatch(cp.dst, fm.dst)) diffs.push({ f:'Dest',   cv:(cp.dst||[]).join('; '), fv:(fm.dst||[]).join('; ') });
-      if (chkSvc && cp && fm && !amatch(cp.svc, fm.svc)) diffs.push({ f:'Service',cv:(cp.svc||[]).join('; '), fv:(fm.svc||[]).join('; ') });
+      addList(chkSrc, 'Source',  cp?.src, fm?.src);
+      addList(chkDst, 'Dest',    cp?.dst, fm?.dst);
+      addList(chkSvc, 'Service', cp?.svc, fm?.svc);
       if (chkSt  && cp && fm && cp.disabled === fm.enabled) diffs.push({ f:'Status', cv:cp.disabled?'DISABLED':'ENABLED', fv:fm.enabled?'ENABLED':'DISABLED' });
-      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+      // ถ้าทุกจุดที่ต่างเป็นเรื่อง suffix ล้วน → "ตรวจซ้ำ" ไม่ใช่ Mismatch
+      const hard = diffs.filter(d => !d.review);
+      res.push({ status: !diffs.length ? 'ok' : (hard.length ? 'mismatch' : 'review'), cp, fmc:fm, diffs });
     });
     extra.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
     if (!inclDis && isCp) CP.policy.filter(r => r.disabled).forEach(r => res.push({ status:'skip', cp:r, fmc:null, diffs:[] }));
@@ -1366,14 +1398,16 @@ function runCmp() {
     const src  = isCp ? CP.objects.filter(o => !isGroup(o)) : FMC.objects.filter(o => !isGroup(o));
     const dst  = isCp ? FMC.objects.filter(o => !isGroup(o)) : CP.objects.filter(o => !isGroup(o));
     const { pairs, extra } = reconcile(src, dst, s => s.value, (o, v) => veqIP(o.value, v));
-    pairs.forEach(([s, match]) => {
+    pairs.forEach(([s, match, viaSuffix]) => {
       const cp = isCp ? s : match;
       const fm = isCp ? match : s;
       if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
       if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
       const diffs = [];
       if (chkSrc && cp && fm && !veqIP(cp.value, fm.value)) diffs.push({ f:'Value/IP', cv:cp.value||'', fv:fm.value||'' });
-      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+      if (viaSuffix) diffs.push({ f:'Name(suffix)', cv:cp?.name||'', fv:fm?.name||'', review:true });
+      const hard = diffs.filter(d => !d.review);
+      res.push({ status: !diffs.length ? 'ok' : (hard.length ? 'mismatch' : 'review'), cp, fmc:fm, diffs });
     });
     extra.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
 
@@ -1384,14 +1418,16 @@ function runCmp() {
     const src  = isCp ? CP.services.filter(s => !isGroup(s)) : FMC.services.filter(s => !isGroup(s));
     const dst  = isCp ? FMC.services.filter(s => !isGroup(s)) : CP.services.filter(s => !isGroup(s));
     const { pairs, extra } = reconcile(src, dst, s => s.port, (o, p) => np(o.port) === np(p));
-    pairs.forEach(([s, match]) => {
+    pairs.forEach(([s, match, viaSuffix]) => {
       const cp = isCp ? s : match;
       const fm = isCp ? match : s;
       if (!fm && isCp) { res.push({ status:'missing', cp:s, fmc:null, diffs:[] }); return; }
       if (!cp && !isCp) { res.push({ status:'missing', cp:null, fmc:s, diffs:[] }); return; }
       const diffs = [];
       if (chkSvc && cp && fm && np(cp.port) !== np(fm.port)) diffs.push({ f:'Port', cv:cp.port||'', fv:fm.port||'' });
-      res.push({ status:diffs.length?'mismatch':'ok', cp, fmc:fm, diffs });
+      if (viaSuffix) diffs.push({ f:'Name(suffix)', cv:cp?.name||'', fv:fm?.name||'', review:true });
+      const hard = diffs.filter(d => !d.review);
+      res.push({ status: !diffs.length ? 'ok' : (hard.length ? 'mismatch' : 'review'), cp, fmc:fm, diffs });
     });
     extra.forEach(r => res.push(isCp ? { status:'extra', cp:null, fmc:r, diffs:[] } : { status:'extra', cp:r, fmc:null, diffs:[] }));
   }
@@ -1453,14 +1489,39 @@ function reconcile(srcArr, dstArr, valueOf, valueCmpFn) {
     if (!byFuzzy.has(fk)) byFuzzy.set(fk, []);
     byFuzzy.get(fk).push(w);
   });
+  const stillUnmatched = [];
   unmatchedSrc.forEach(s => {
     const cands = (byFuzzy.get(nk(s.name)) || []).filter(w => !w.used);
-    if (!cands.length) { pairs.push([s, null]); return; }
+    if (!cands.length) { stillUnmatched.push(s); return; }
     const exact = cands.find(w => valueCmpFn(w.o, valueOf(s)));
     const chosen = exact || cands[0];
     chosen.used = true;
     pairs.push([s, chosen.o]);
   });
+
+  //   รอบ 3 — ตัว suffix ที่ FMT เติมตอน rename (เช่น "-CP") ทำให้ชื่อไม่ตรงทั้งที่
+  //   เป็น object เดียวกัน ถ้าไม่จับรอบนี้จะขึ้น Missing ฝั่งหนึ่ง + Extra อีกฝั่ง
+  //   ทั้งคู่ ซึ่งชวนให้เข้าใจผิดว่า migrate ตกหล่น — จับได้แล้วติดธง viaSuffix
+  //   ให้ไปแสดงเป็น "ตรวจซ้ำ" แทนที่จะกลืนเป็น Match เงียบๆ
+  if (SUFFIXES.length) {
+    const bySfx = new Map();
+    dstPool.forEach(w => {
+      if (w.used) return;
+      const k = nk(stripSuffix(w.o.name));
+      if (!bySfx.has(k)) bySfx.set(k, []);
+      bySfx.get(k).push(w);
+    });
+    stillUnmatched.forEach(s => {
+      const cands = (bySfx.get(nk(stripSuffix(s.name))) || []).filter(w => !w.used);
+      if (!cands.length) { pairs.push([s, null]); return; }
+      const exact = cands.find(w => valueCmpFn(w.o, valueOf(s)));
+      const chosen = exact || cands[0];
+      chosen.used = true;
+      pairs.push([s, chosen.o, true]);
+    });
+  } else {
+    stillUnmatched.forEach(s => pairs.push([s, null]));
+  }
 
   const extra = dstPool.filter(w => !w.used).map(w => w.o);
   return { pairs, extra };
@@ -1638,15 +1699,65 @@ function np(p)  { return (p||'').replace(/\s/g,'').toLowerCase(); }
 // แบบ exact-match ตัวพิมพ์ตรงๆ (.includes('Any')) จะไม่ match กันทำให้ขึ้น
 // Mismatch ปลอมทั้งที่ทั้งคู่หมายถึง "ทั้งหมด" เหมือนกัน จึงต้องเทียบแบบไม่สนตัวพิมพ์
 function isAny(v) { return (v||'').trim().toLowerCase() === 'any'; }
-function amatch(a, b) {
-  if (!a || !b) return false;
+// ── Migration suffix (FMT rename) ────────────────────────────────────────────
+// ตอน migrate ถ้าชื่อ object ชนกับของเดิมใน FMC ตัว FMT จะบังคับให้เติมอะไรต่อท้าย
+// (ที่ GHB เลือกใช้ "-CP") ผลคือ GHB_Service_21_22 ฝั่ง CP กลายเป็น
+// GHB_Service_21_22-CP ฝั่ง FMC — เป็นคนละชื่อจริงๆ แต่ตั้งใจให้เป็นตัวเดียวกัน
+// จึงไม่ควรนับเป็น Mismatch (ไม่ใช่ config ผิด) และไม่ควรนับเป็น Match เงียบๆ
+// (เครื่องมือพิสูจน์ไม่ได้ว่าเนื้อในเหมือนกัน ถ้ามีใครใส่ค่าผิดจะหลุดไป)
+// → แยกเป็นสถานะที่สาม "ตรวจซ้ำ" ให้คนยืนยันด้วยตา
+let SUFFIXES = ['-CP'];
+function loadSuffixes() {
+  const raw = (document.getElementById('o-sfx').value || '').trim();
+  SUFFIXES = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  try { localStorage.setItem('fw_suffix', raw); } catch(e) {}
+}
+// ตัด suffix ออกท้ายชื่อ (ไม่สนตัวพิมพ์) — คืนค่าเดิมถ้าไม่มี suffix ตรงเลย
+function stripSuffix(name) {
+  let n = (name || '').trim();
+  for (const s of SUFFIXES) {
+    if (!s) continue;
+    if (n.toLowerCase().endsWith(s.toLowerCase())) return n.slice(0, -s.length);
+  }
+  return n;
+}
+function hasSuffix(name) { return stripSuffix(name) !== (name || '').trim(); }
+// ชื่อสองตัวเป็นคู่เดียวกันแบบ "ต่างแค่ suffix" ไหม
+function suffixPair(a, b) {
+  if (!SUFFIXES.length) return false;
+  if (nk(a) === nk(b)) return false;            // ตรงกันอยู่แล้ว ไม่ใช่เคสนี้
+  return nk(stripSuffix(a)) === nk(stripSuffix(b));
+}
+
+// amatch คืน true/false เหมือนเดิม (ใช้ตัดสินว่า "ต่าง" ไหม)
+// amatchEx คืนรายละเอียดเพิ่มว่าที่ต่างนั้นเป็นแค่ suffix หรือเปล่า
+function amatch(a, b) { return amatchEx(a, b).match; }
+function amatchEx(a, b) {
+  const R = (match, suffixOnly = false, pairs = []) => ({ match, suffixOnly, pairs });
+  if (!a || !b) return R(false);
   const aAny = a.some(isAny), bAny = b.some(isAny);
-  if (aAny && bAny) return true;
-  if (aAny !== bAny) return false;
+  if (aAny && bAny) return R(true);
+  if (aAny !== bAny) return R(false);
   const sa = new Set(a.map(nk)), sb = new Set(b.map(nk));
-  if (sa.size !== sb.size) return false;
-  for (const v of sa) if (!sb.has(v)) return false;
-  return true;
+  if (sa.size === sb.size) {
+    let same = true;
+    for (const v of sa) if (!sb.has(v)) { same = false; break; }
+    if (same) return R(true);
+  }
+  // ไม่ตรงแบบตรงตัว — ลองใหม่โดยตัด suffix ออกทั้งสองฝั่ง ถ้าตรงหมดแปลว่า
+  // ต่างกันเพราะ FMT rename อย่างเดียว ไม่ใช่ config คนละตัว
+  if (!SUFFIXES.length) return R(false);
+  const ka = a.map(stripSuffix).map(nk), kb = b.map(stripSuffix).map(nk);
+  const seta = new Set(ka), setb = new Set(kb);
+  if (seta.size !== setb.size) return R(false);
+  for (const v of seta) if (!setb.has(v)) return R(false);
+  // เก็บคู่ที่ถูก rename ไว้โชว์ให้คนตรวจ
+  const pairs = [];
+  a.forEach(x => {
+    const m = b.find(y => suffixPair(x, y));
+    if (m) pairs.push([x, m]);
+  });
+  return R(false, true, pairs);
 }
 function aeq(ca, fa) {
   const c = (ca||'').toLowerCase(), f = (fa||'').toLowerCase();
@@ -1659,13 +1770,15 @@ function aeq(ca, fa) {
 // ── Summary & badges ──────────────────────────────────────────────────────────
 function updateSummary() {
   const res = RES[curSec] || [];
-  const cnt = { ok:0, missing:0, mismatch:0, extra:0, skip:0 };
+  const cnt = { ok:0, missing:0, mismatch:0, extra:0, skip:0, review:0 };
   res.forEach(r => cnt[r.status] = (cnt[r.status]||0) + 1);
   document.getElementById('c-ok').textContent = cnt.ok.toLocaleString();
   document.getElementById('c-ms').textContent = cnt.missing.toLocaleString();
   document.getElementById('c-mm').textContent = cnt.mismatch.toLocaleString();
   document.getElementById('c-ex').textContent = cnt.extra.toLocaleString();
   document.getElementById('c-sk').textContent = cnt.skip.toLocaleString();
+  document.getElementById('c-rv').textContent  = cnt.review.toLocaleString();
+  document.getElementById('rn-rv').textContent = cnt.review.toLocaleString();
   const nOrd = res.filter(r => r.orderBad).length;
   const nSpl = res.filter(r => (r.fmc?.parts||1) > 1).length;
   document.getElementById('c-or').textContent  = curSec === 'policy' ? nOrd.toLocaleString() : '—';
@@ -1690,8 +1803,8 @@ function updateSecBadge(sec, res) {
   el.className   = 'stab-cnt' + (miss > 0 ? ' red' : mm > 0 ? ' yel' : '');
 }
 function resetRight() {
-  ['ok','ms','mm','ex','sk','or'].forEach(id => document.getElementById('c-'+id).textContent = '—');
-  ['all','miss','mm','ok','ex','or','sp'].forEach(id => document.getElementById('rn-'+id).textContent = '0');
+  ['ok','ms','mm','ex','sk','or','rv'].forEach(id => document.getElementById('c-'+id).textContent = '—');
+  ['all','miss','mm','ok','ex','or','sp','rv'].forEach(id => document.getElementById('rn-'+id).textContent = '0');
   document.getElementById('result').innerHTML = '<div id="placeholder"><div class="icon">⚖</div><p>โหลด FMC data แล้วกด เปรียบเทียบ</p></div>';
   document.getElementById('toolbar').style.display = 'none';
 }
@@ -1719,7 +1832,8 @@ function renderTable() {
   document.getElementById('tcnt').textContent = rows.length.toLocaleString() + ' รายการ';
 
   const STBADGE = { ok:'<span class="stbadge st-ok">✓ Match</span>', missing:'<span class="stbadge st-miss">✗ Missing</span>',
-    mismatch:'<span class="stbadge st-mm">⚠ Mismatch</span>', extra:'<span class="stbadge st-ex">+ Extra</span>', skip:'<span class="stbadge st-skip">— Skip</span>' };
+    mismatch:'<span class="stbadge st-mm">⚠ Mismatch</span>', extra:'<span class="stbadge st-ex">+ Extra</span>', skip:'<span class="stbadge st-skip">— Skip</span>',
+    review:'<span class="stbadge st-review">⚑ ตรวจซ้ำ</span>' };
 
   let th = '', html = '';
 
@@ -1740,7 +1854,7 @@ function renderTable() {
         <td class="act-${cp?.action}">${cp?cp.action.toUpperCase():'—'}</td>
         <td class="act-${fm?.action}">${fm?fm.action.toUpperCase():'—'}</td>
         <td>${pills(cp?.src,sd,CP.objects)}</td><td>${pills(cp?.dst,dd,CP.objects)}</td><td>${pills(cp?.svc,vd,CP.services)}</td>
-        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.f).join(', ')}${ordBad?(r.diffs.length?', ':'')+'<span style="color:#f472b6">Order</span>':''}</td></tr>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.review?'<span style="color:#93c5fd">'+d.f+'</span>':d.f).join(', ')}${ordBad?(r.diffs.length?', ':'')+'<span style="color:#f472b6">Order</span>':''}</td></tr>
         <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="10" style="padding:0">${detPanel(r,sec)}</td></tr>`;
     }).join('');
 
@@ -1852,14 +1966,21 @@ function detPanel(r, sec) {
     const d = cv !== fv && cv && fv;
     return `<div class="det-field"><span class="det-key">${k}</span><span class="det-val${d?' diff':''}">${esc(String(cv||'—').substring(0,100))} / <span style="color:var(--fmc)">${esc(String(fv||'—').substring(0,100))}</span></span></div>`;
   };
-  let fields = '';
-  if (sec==='policy')  fields = df('ลำดับ (CP/FMC)', cp?.num, fm ? ((fm.parts||1)>1 ? fm.num+'–'+fm.numMax : fm.num) : null)
+  // สรุปให้เห็นชัดว่าแถวนี้ขึ้น "ตรวจซ้ำ" เพราะอะไร และคู่ไหนถูก rename
+  const rv = (r.diffs || []).filter(d => d.review);
+  const rvNote = rv.length ? `<div class="det-field"><span class="det-key">ตรวจซ้ำ</span><span class="det-val" style="color:#93c5fd">⚑ ชื่อต่างกันแค่ suffix ที่ FMT เติมตอน rename — ไม่ใช่ config ผิด แต่เครื่องมือยืนยันเนื้อในให้ไม่ได้ ต้องเปิดดูเอง<br>` +
+    rv.map(d => (d.pairs && d.pairs.length
+      ? d.pairs.map(([a,b]) => `<span class="pill">${esc(a)}</span> <span style="color:var(--muted)">→</span> <span class="pill pill-review">${esc(b)}</span>`).join('  ')
+      : `<span class="pill">${esc(d.cv)}</span> <span style="color:var(--muted)">→</span> <span class="pill pill-review">${esc(d.fv)}</span>`)).join('<br>') +
+    `</span></div>` : '';
+  let fields = rvNote;
+  if (sec==='policy')  fields += df('ลำดับ (CP/FMC)', cp?.num, fm ? ((fm.parts||1)>1 ? fm.num+'–'+fm.numMax : fm.num) : null)
     + (r.order && !r.order.ok ? `<div class="det-field"><span class="det-key">Order</span><span class="det-val diff" style="color:#f472b6">⇅ ลำดับไม่ตรงกับ CP — CP ลำดับที่ ${r.order.cpSeq} แต่ FMC วางไว้ตำแหน่ง ${r.order.fmcSeq} (${r.order.moved==='up'?'เลื่อนขึ้นมาก่อน rule ที่ควรมาก่อน — เสี่ยงบัง (shadow) rule อื่น':'ตกไปอยู่หลัง rule ที่ควรตามหลัง — เสี่ยงถูก rule อื่นบัง'}, ข้าม ${r.order.jumped} rule)</span></div>` : '')
     + ((fm?.parts||1)>1 ? `<div class="det-field"><span class="det-key">FMT Split</span><span class="det-val" style="color:#7dd3fc">⧉ FMT แยก CP rule นี้เป็น ${fm.parts} rule (object เกินเพดานต่อ rule) — รวม object ทุกส่วนแล้วเทียบเป็นก้อนเดียว<br><span style="color:var(--muted)">${esc(fm.partNames.join('  |  '))}</span></span></div>` : '')
     + df('Action',(cp?.action||'').toUpperCase(),(fm?.action||'').toUpperCase())+dfList('Source',cp?.src,fm?.src,CP.objects,FMC.objects)+dfList('Dest',cp?.dst,fm?.dst,CP.objects,FMC.objects)+dfList('Service',cp?.svc,fm?.svc,CP.services,FMC.services)+df('Status',cp?.disabled?'DISABLED':'ENABLED',fm?.enabled?'ENABLED':'DISABLED');
-  if (sec==='nat')     fields = df('#',cp?.num,fm?.num)+df('Type',cp?.natType,fm?.natType)+df('Orig Src',cp?.origSrc,fm?.origSrc)+df('Trans Src',cp?.transSrc,fm?.transSrc)+df('Orig Dst',cp?.origDst,fm?.origDst)+df('Trans Dst',cp?.transDst,fm?.transDst);
-  if (sec==='objects') fields = df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Value',cp?.value,fm?.value);
-  if (sec==='services')fields = df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Port',cp?.port,fm?.port);
+  if (sec==='nat')     fields += df('#',cp?.num,fm?.num)+df('Type',cp?.natType,fm?.natType)+df('Orig Src',cp?.origSrc,fm?.origSrc)+df('Trans Src',cp?.transSrc,fm?.transSrc)+df('Orig Dst',cp?.origDst,fm?.origDst)+df('Trans Dst',cp?.transDst,fm?.transDst);
+  if (sec==='objects') fields += df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Value',cp?.value,fm?.value);
+  if (sec==='services')fields += df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Port',cp?.port,fm?.port);
   return `<div class="det-inner"><div class="det-hdr"><span style="color:var(--cp);font-weight:700">CHECK POINT</span><span style="color:var(--fmc);font-weight:700">CISCO FMC</span></div>${fields}</div>`;
 }
 
