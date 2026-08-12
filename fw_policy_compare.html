@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.9.2</title>
+<title>FW Migration Comparator v3.10.0</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -439,7 +439,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.9.2</span>
+  <span id="ver">v3.10.0</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -578,7 +578,7 @@ GET /object/portobjectgroups?expanded=true&limit=1000</pre>
 </div>
 
 <script type="text/plain" id="fmc-src">/* ============================================================================
-   FMC Bulk Export  v1.1  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
+   FMC Bulk Export  v1.2  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
 
    ปัญหาที่แก้: FMC REST API จำกัด limit=1000 ต่อ 1 request ถ้ามี 8,000 object
    ต้องยิงเอง 8 ครั้งแล้วมานั่งรวมไฟล์ — สคริปต์นี้วน offset ให้อัตโนมัติจนครบ
@@ -597,7 +597,7 @@ GET /object/portobjectgroups?expanded=true&limit=1000</pre>
 (async () => {
 'use strict';
 
-const VER = 'v1.1';
+const VER = 'v1.2';
 const LIMIT = 1000;        // เพดานต่อ request ของ FMC
 const DELAY = 250;         // หน่วงระหว่าง request — FMC จำกัด 120 req/min
 const MAX_PAGES = 200;     // กันลูปไม่รู้จบถ้า API ตอบผิดรูปแบบ
@@ -749,7 +749,9 @@ const SECTIONS = {
       for (const e of ['tcpportobjects', 'udpportobjects'])
         all = all.concat(await getAll(`${base}/object/${e}`, e));
     }
-    for (const e of ['icmpv4objects', 'portobjectgroups'])
+    // icmpv6objects ลืมใส่ใน v1.0/v1.1 — CP มี icmpv6_service อยู่ 24 ตัวที่ GHB
+    // พอไม่ดึงมา เครื่องมือเทียบเลยรายงานว่า "Missing FMC" ทั้งหมดทั้งที่ migrate ไปแล้ว
+    for (const e of ['icmpv4objects', 'icmpv6objects', 'portobjectgroups'])
       all = all.concat(await getAll(`${base}/object/${e}`, e));
     return dedupe(all);
   }
@@ -956,7 +958,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
 
 <script>
 'use strict';
-const VER = 'v3.9.2';
+const VER = 'v3.10.0';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
@@ -1235,7 +1237,7 @@ function normNat(r, i) {
     origDst:go(r.originalDestination), transDst:go(r.translatedDestination)||'Original' };
 }
 function normObjects(arr) { return arr.map(o => ({ name:o.name||'', type:(o.type||'').toLowerCase(), value:o.value||'', id:o.id||'' })); }
-function normServices(arr) { return arr.map(o => ({ name:o.name||'', type:(o.type||'').toLowerCase(), port:o.port||o.icmpType||'', id:o.id||'' })); }
+function normServices(arr) { return arr.map(o => ({ name:o.name||'', type:(o.type||'').toLowerCase(), port:o.port||o.icmpType||o.icmpv6Type||'', id:o.id||'' })); }
 
 // ── Parse CP XML ──────────────────────────────────────────────────────────────
 function parsePolicy(xml) {
@@ -1306,7 +1308,12 @@ function parseServices(xml) {
     const name = ne.textContent.trim(), stype = SM[cn.textContent];
     let port = '';
     if (['tcp','udp'].includes(stype)) { const p = el.querySelector(':scope > port'); port = p?p.textContent.trim():''; }
-    else if (stype === 'icmp') { const t = el.querySelector(':scope > icmp_type'); port = t?'type:'+t.textContent.trim():''; }
+    else if (stype === 'icmp' || stype === 'icmpv6') { const t = el.querySelector(':scope > icmp_type'); port = t?'type:'+t.textContent.trim():''; }
+    // other_service ของ CP ไม่มี <port> — เก็บหมายเลข IP protocol ไว้ใน <protocol> แทน
+    // (เช่น FW1_Encapsulation protocol=94) ส่วน FMT ย้ายค่านี้ไปลงช่อง port ของ FMC
+    // (ProtocolPortObject port="94" protocol="ALL") ถ้าไม่อ่านตรงนี้ CP จะได้ค่าว่าง
+    // แล้วขึ้น Mismatch ปลอมทุกตัว (พบจริง 48 รายการที่ GHB)
+    else if (stype === 'other') { const p = el.querySelector(':scope > protocol'); port = p?p.textContent.trim():''; }
     else if (stype === 'group') { const mem = el.querySelector(':scope > members'); if (mem) port = [...mem.children].map(m => { const n = m.querySelector('Name'); return n?n.textContent.trim():''; }).filter(Boolean).join('; '); }
     items.push({ name, type:stype, port });
   });
@@ -1693,7 +1700,21 @@ function veqIP(a, b) {
   const norm = v => (v||'').replace(/\/32$/, '').replace(/[–—]/g, '-').replace(/\s*-\s*/g, '-');
   return veq(norm(a), norm(b));
 }
-function np(p)  { return (p||'').replace(/\s/g,'').toLowerCase(); }
+// np: ทำให้ค่า port/type เทียบกันได้ แม้สองระบบเขียนคนละแบบแต่หมายถึงค่าเดียวกัน
+//   1) ICMP — CP ส่งมาเป็น "type:31" (parseServices เติม prefix ให้อ่านง่าย)
+//      แต่ FMC ส่ง icmpType เป็น "31" เฉยๆ → ตัด prefix ทิ้งก่อนเทียบ
+//   2) ช่วง port — CP ใช้สัญกรณ์ ">1023" / "<1024" ส่วน FMC เขียนเป็นช่วงเต็ม
+//      "1024-65535" ทั้งที่หมายถึงชุด port เดียวกัน → แปลงให้เป็นรูปเดียวกัน
+//      (ตัวอย่างจริง: tcp-high-ports / udp-high-ports ที่ GHB)
+function np(p) {
+  let v = (p||'').replace(/\s/g,'').toLowerCase().replace(/^type:/,'');
+  let m = /^>(\d+)$/.exec(v);      if (m) return (+m[1] + 1) + '-65535';
+  m     = /^>=(\d+)$/.exec(v);     if (m) return (+m[1]) + '-65535';
+  m     = /^<(\d+)$/.exec(v);      if (m) return '1-' + (+m[1] - 1);
+  m     = /^<=(\d+)$/.exec(v);     if (m) return '1-' + (+m[1]);
+  m     = /^(\d+)-65535$/.exec(v); if (m) return v;   // รูปแบบมาตรฐานอยู่แล้ว
+  return v;
+}
 // CP กับ FMC ใช้ตัวพิมพ์ไม่ตรงกันสำหรับค่า "ทั้งหมด" (CP/ค่า fallback ในนี้ใช้
 // "Any" ตัวใหญ่ แต่ FMC บาง field เช่น Users ส่งมาเป็น "any" ตัวเล็ก) — ถ้าเทียบ
 // แบบ exact-match ตัวพิมพ์ตรงๆ (.includes('Any')) จะไม่ match กันทำให้ขึ้น

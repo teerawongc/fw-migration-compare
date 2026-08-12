@@ -1,5 +1,5 @@
 /* ============================================================================
-   FMC Bulk Export  v1.1  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
+   FMC Bulk Export  v1.2  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
 
    ปัญหาที่แก้: FMC REST API จำกัด limit=1000 ต่อ 1 request ถ้ามี 8,000 object
    ต้องยิงเอง 8 ครั้งแล้วมานั่งรวมไฟล์ — สคริปต์นี้วน offset ให้อัตโนมัติจนครบ
@@ -18,7 +18,7 @@
 (async () => {
 'use strict';
 
-const VER = 'v1.1';
+const VER = 'v1.2';
 const LIMIT = 1000;        // เพดานต่อ request ของ FMC
 const DELAY = 250;         // หน่วงระหว่าง request — FMC จำกัด 120 req/min
 const MAX_PAGES = 200;     // กันลูปไม่รู้จบถ้า API ตอบผิดรูปแบบ
@@ -170,7 +170,9 @@ const SECTIONS = {
       for (const e of ['tcpportobjects', 'udpportobjects'])
         all = all.concat(await getAll(`${base}/object/${e}`, e));
     }
-    for (const e of ['icmpv4objects', 'portobjectgroups'])
+    // icmpv6objects ลืมใส่ใน v1.0/v1.1 — CP มี icmpv6_service อยู่ 24 ตัวที่ GHB
+    // พอไม่ดึงมา เครื่องมือเทียบเลยรายงานว่า "Missing FMC" ทั้งหมดทั้งที่ migrate ไปแล้ว
+    for (const e of ['icmpv4objects', 'icmpv6objects', 'portobjectgroups'])
       all = all.concat(await getAll(`${base}/object/${e}`, e));
     return dedupe(all);
   }

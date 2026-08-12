@@ -131,6 +131,34 @@ console.log('\n=== v3.9.0 · suffix ที่ FMT เติมตอน rename =
   ok('CP อยู่กลางชื่อ ไม่ถือเป็น suffix → Mismatch', r[0].status === 'mismatch');
 }
 
+console.log('\n=== v3.10.0 · การเทียบค่า port/type ที่สองระบบเขียนคนละแบบ ===');
+{
+  // เคสจริงจาก GHB — เจอตอนเทียบ services.xml กับ FMC export
+  const np = w.eval('np');
+  ok('ICMP: CP "type:31" == FMC "31"',        np('type:31') === np('31'));
+  ok('ICMP: type ต่างกันจริงยังจับได้',        np('type:31') !== np('32'));
+  ok('ช่วง port: ">1023" == "1024-65535"',    np('>1023') === np('1024-65535'));
+  ok('ช่วง port: "<1024" == "1-1023"',        np('<1024') === np('1-1023'));
+  ok('ค่าปกติไม่ถูกแปลงผิด',                   np('8080') === '8080');
+  ok('ช่วงปกติไม่ถูกแปลงผิด',                  np('8000-8090') === '8000-8090');
+
+  // CP เก็บ IP protocol ของ other_service ไว้ใน <protocol> ไม่ใช่ <port>
+  const parseServices = w.eval('parseServices');
+  const xml = `<root><service><Name>FW1_Encapsulation</Name>
+    <Class_Name><![CDATA[other_service]]></Class_Name><protocol>94</protocol></service>
+    <service><Name>GHB_ICMP_31</Name>
+    <Class_Name><![CDATA[icmp_service]]></Class_Name><icmp_type>31</icmp_type></service>
+    <service><Name>echo-request6</Name>
+    <Class_Name><![CDATA[icmpv6_service]]></Class_Name><icmp_type>128</icmp_type></service></root>`;
+  const parsed = parseServices(xml);
+  const byName = Object.fromEntries(parsed.map(o => [o.name, o]));
+  ok('other_service อ่านค่าจาก <protocol> ได้ (94)', byName['FW1_Encapsulation']?.port === '94');
+  ok('icmp อ่าน icmp_type ได้',                      byName['GHB_ICMP_31']?.port === 'type:31');
+  ok('icmpv6 อ่าน icmp_type ได้ (เดิมว่างเปล่า)',      byName['echo-request6']?.port === 'type:128');
+  ok('other_service ที่ protocol=94 เทียบกับ FMC port=94 แล้วตรง',
+     np(byName['FW1_Encapsulation'].port) === np('94'));
+}
+
 console.log('\n=== v3.9.0 · UI ของสถานะ ตรวจซ้ำ ===');
 {
   run([CP({ num:1, svc:['X'] }), CP({ num:2, svc:['Y'] })],
