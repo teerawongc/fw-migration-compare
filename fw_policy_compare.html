@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.7.2</title>
+<title>FW Migration Comparator v3.8.0</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -344,45 +344,45 @@ body.light .det-inner { background: #e8f0ff; border-top-color: #2563eb; }
 body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
 
 /* ── Help modal ── */
-#help-overlay {
+#help-overlay, #exp-overlay {
   display: none;
   position: fixed; inset: 0; z-index: 500;
   background: rgba(0,0,0,.6);
   align-items: center; justify-content: center;
 }
-#help-overlay.open { display: flex; }
-#help-modal {
+#help-overlay.open, #exp-overlay.open { display: flex; }
+#help-modal, #exp-modal {
   background: var(--bg2); border: 1px solid var(--bd); border-radius: 8px;
   width: min(720px, 92vw); max-height: 86vh; overflow-y: auto;
   padding: 0; box-shadow: 0 20px 60px rgba(0,0,0,.5);
 }
-#help-hdr {
+#help-hdr, #exp-hdr {
   position: sticky; top: 0; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
   background: var(--bg2); border-bottom: 1px solid var(--bd);
   padding: 14px 18px;
 }
-#help-hdr h2 { font-size: 15px; }
-#help-close {
+#help-hdr h2, #exp-hdr h2 { font-size: 15px; }
+#help-close, #exp-close {
   background: var(--bg3); border: 1px solid var(--bd); color: var(--txt);
   border-radius: 5px; width: 26px; height: 26px; cursor: pointer; font-size: 13px;
 }
-#help-close:hover { border-color: var(--err); color: var(--err); }
-#help-body { padding: 16px 18px 22px; font-size: 12px; line-height: 1.7; color: var(--txt); }
-#help-body h3 { font-size: 12px; color: var(--fmc); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
-#help-body h3:first-child { margin-top: 0; }
-#help-body ol, #help-body ul { margin: 0 0 10px 20px; }
-#help-body li { margin-bottom: 6px; }
-#help-body code {
+#help-close:hover, #exp-close:hover { border-color: var(--err); color: var(--err); }
+#help-body, #exp-body { padding: 16px 18px 22px; font-size: 12px; line-height: 1.7; color: var(--txt); }
+#help-body h3, #exp-body h3 { font-size: 12px; color: var(--fmc); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+#help-body h3:first-child, #exp-body h3:first-child { margin-top: 0; }
+#help-body ol, #help-body ul, #exp-body ol, #exp-body ul { margin: 0 0 10px 20px; }
+#help-body li, #exp-body li { margin-bottom: 6px; }
+#help-body code, #exp-body code {
   background: var(--bg); border: 1px solid var(--bd); border-radius: 3px;
   padding: 1px 5px; font-family: monospace; font-size: 11px; color: #93c5fd;
 }
-#help-body pre {
+#help-body pre, #exp-body pre {
   background: var(--bg); border: 1px solid var(--bd); border-radius: 5px;
   padding: 8px 10px; font-family: monospace; font-size: 10.5px; color: #93c5fd;
   overflow-x: auto; margin-bottom: 10px; line-height: 1.5;
 }
-#help-body .warn-box {
+#help-body .warn-box, #exp-body .warn-box {
   background: #2a1a05; border: 1px solid #78350f; color: #fcd34d;
   border-radius: 5px; padding: 8px 10px; font-size: 11px; margin-bottom: 10px;
 }
@@ -391,6 +391,39 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   width: 26px; height: 26px; padding: 0; font-size: 13px; color: var(--txt); cursor: pointer;
 }
 #help-btn:hover { border-color: var(--fmc); }
+
+/* ── FMC Export modal ── */
+#exp-btn {
+  background: var(--bg3); border: 1px solid var(--bd); border-radius: 20px;
+  height: 26px; padding: 0 10px; font-size: 10.5px; font-weight: 700;
+  color: var(--fmc); cursor: pointer; white-space: nowrap;
+}
+#exp-btn:hover { border-color: var(--fmc); background: #0c2942; }
+#exp-modal { width: min(860px, 94vw); }
+#exp-code {
+  background: #06111f; border: 1px solid var(--bd); border-radius: 6px;
+  padding: 10px 12px; font-family: monospace; font-size: 10px; line-height: 1.45;
+  color: #93c5fd; white-space: pre; overflow: auto; max-height: 300px; margin: 0;
+}
+.exp-bar { display: flex; gap: 8px; align-items: center; margin: 10px 0 6px; }
+.exp-copy {
+  background: var(--fmc); border: none; color: #04121f; font-weight: 800;
+  border-radius: 5px; padding: 7px 14px; font-size: 11.5px; cursor: pointer;
+}
+.exp-copy:hover { filter: brightness(1.12); }
+.exp-copy.done { background: var(--ok); }
+.exp-dl {
+  background: var(--bg3); border: 1px solid var(--bd); color: var(--txt);
+  border-radius: 5px; padding: 7px 12px; font-size: 11.5px; cursor: pointer;
+}
+.exp-dl:hover { border-color: var(--fmc); }
+.exp-note { font-size: 10.5px; color: var(--muted); margin-left: auto; }
+.exp-step { display: flex; gap: 9px; margin-bottom: 7px; align-items: flex-start; }
+.exp-n {
+  flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%;
+  background: var(--fmc); color: #04121f; font-size: 10.5px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
 </style>
 </head>
 <body>
@@ -401,7 +434,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.7.2</span>
+  <span id="ver">v3.8.0</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -413,6 +446,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
       <span id="dir-b" style="color:var(--fmc);font-weight:800">FMC</span>
       <span style="color:var(--muted);font-size:9px">⇄</span>
     </button>
+    <button id="exp-btn" onclick="toggleExp(true)" title="ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว">📥 FMC Export</button>
     <button class="toggle-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
     <button id="help-btn" onclick="toggleHelp(true)" title="วิธีใช้งาน">❓</button>
   </div>
@@ -489,6 +523,269 @@ GET /object/portobjectgroups?expanded=true&limit=1000</pre>
     </div>
   </div>
 </div>
+
+<!-- FMC EXPORT MODAL -->
+<div id="exp-overlay" onclick="if(event.target===this) toggleExp(false)">
+  <div id="exp-modal">
+    <div id="exp-hdr">
+      <h2>📥 ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว</h2>
+      <button id="exp-close" onclick="toggleExp(false)">✕</button>
+    </div>
+    <div id="exp-body">
+
+      <p>FMC REST API จำกัด <code>limit=1000</code> ต่อ 1 request — ถ้ามี 8,000 object ต้องยิงเอง 8 ครั้งแล้วมานั่งรวมไฟล์ สคริปต์นี้<b>วน offset ให้อัตโนมัติจนครบ</b> แล้วรวมเป็น <b>4 ไฟล์</b> ตรงกับ 4 แท็บของเครื่องมือนี้ ลากเข้าช่อง FMC ได้เลย</p>
+      <div class="warn-box">ไม่ต้องติดตั้งอะไรบนเครื่องลูกค้า — ใช้แค่ Chrome Console บนหน้า FMC ที่ล็อกอินอยู่แล้ว</div>
+
+      <h3>ขั้นตอน</h3>
+      <div class="exp-step"><div class="exp-n">1</div><div>เปิด Chrome เข้าหน้าเว็บ FMC แล้ว login ตามปกติ</div></div>
+      <div class="exp-step"><div class="exp-n">2</div><div>กด <code>F12</code> → แท็บ <b>Console</b> (ถ้ามีหลาย frame ให้เลือก frame บนสุดในกล่อง dropdown ข้างช่อง filter)</div></div>
+      <div class="exp-step"><div class="exp-n">3</div><div>ถ้า Chrome เตือนว่าห้ามวางโค้ด ให้พิมพ์ <code>allow pasting</code> แล้ว Enter ก่อน 1 ครั้ง</div></div>
+      <div class="exp-step"><div class="exp-n">4</div><div>กดปุ่ม <b>Copy</b> ด้านล่าง → วางใน Console → Enter</div></div>
+      <div class="exp-step"><div class="exp-n">5</div><div>ใส่ username / password ของ FMC (บัญชีต้องมีสิทธิ์ REST API) ถ้ามีหลาย Access Policy จะให้เลือกว่าเอาอันไหน</div></div>
+      <div class="exp-step"><div class="exp-n">6</div><div>รอจนขึ้น <b>เสร็จสมบูรณ์</b> — Chrome จะถามว่าจะดาวน์โหลดหลายไฟล์ไหม กด <b>Allow</b></div></div>
+
+      <div class="exp-bar">
+        <button class="exp-copy" id="exp-copy-btn" onclick="copyExpScript()">📋 Copy สคริปต์</button>
+        <button class="exp-dl" onclick="dlExpScript()">⬇ บันทึกเป็นไฟล์ .js</button>
+        <span class="exp-note" id="exp-size"></span>
+      </div>
+      <pre id="exp-code"></pre>
+
+      <h3>ไฟล์ที่ได้</h3>
+      <ul>
+        <li><code>fmc_policy_YYYY-MM-DD.json</code> → แท็บ Security Policy</li>
+        <li><code>fmc_nat_YYYY-MM-DD.json</code> → แท็บ NAT Policy</li>
+        <li><code>fmc_objects_YYYY-MM-DD.json</code> → แท็บ Network Objects (รวม hosts + networks + ranges + groups)</li>
+        <li><code>fmc_services_YYYY-MM-DD.json</code> → แท็บ Service Objects</li>
+      </ul>
+
+      <h3>ถ้ามีปัญหา</h3>
+      <ul>
+        <li><b>login ไม่ผ่าน (401)</b> — บัญชีต้องมี role ที่เปิดสิทธิ์ REST API (Administrator / Network Admin) ไม่ใช่แค่ล็อกอินหน้าเว็บได้</li>
+        <li><b>ไม่ได้ token กลับมา</b> — รันผิดหน้า ต้องรันบนหน้า FMC เท่านั้น (same-origin) รันจากแท็บอื่นเบราว์เซอร์จะซ่อน header ให้</li>
+        <li><b>ไฟล์ไม่ถูกดาวน์โหลด</b> — ข้อมูลยังอยู่ใน <code>window.FMC_EXPORT</code> ดึงทีละอันได้ด้วย <code>copy(JSON.stringify({items:window.FMC_EXPORT.objects}))</code></li>
+        <li><b>ช้า / โดน rate limit</b> — FMC จำกัด 120 request ต่อนาที สคริปต์หน่วง 250ms และถอยอัตโนมัติเมื่อเจอ 429 อยู่แล้ว ปล่อยให้รันไป</li>
+        <li><b>endpoint บางตัวขึ้น "ข้าม"</b> — ปกติ เช่น <code>tcpportobjects</code> ไม่มีบน FMC 7.6.5 สคริปต์ลองทั้งแบบเก่าและใหม่แล้วตัดตัวซ้ำด้วย id ให้เอง</li>
+      </ul>
+
+    </div>
+  </div>
+</div>
+
+<script type="text/plain" id="fmc-src">/* ============================================================================
+   FMC Bulk Export  v1.0  —  ดึง config จาก FMC ครบทุกหน้าในครั้งเดียว
+
+   ปัญหาที่แก้: FMC REST API จำกัด limit=1000 ต่อ 1 request ถ้ามี 8,000 object
+   ต้องยิงเอง 8 ครั้งแล้วมานั่งรวมไฟล์ — สคริปต์นี้วน offset ให้อัตโนมัติจนครบ
+   แล้วรวมเป็นไฟล์เดียวต่อ section (ได้ 4 ไฟล์ ตรงกับ 4 แท็บของ Comparator)
+
+   วิธีใช้ (ไม่ต้องติดตั้งอะไรบนเครื่องลูกค้า):
+     1. เปิด Chrome เข้าหน้าเว็บ FMC แล้ว login ตามปกติ
+     2. กด F12 → แท็บ Console
+     3. ถ้า Chrome ขึ้นเตือนไม่ให้วาง ให้พิมพ์  allow pasting  แล้ว Enter ก่อน
+     4. วางสคริปต์นี้ทั้งหมด → Enter
+     5. ใส่ username / password ของ FMC (ต้องมีสิทธิ์ REST API)
+     6. รอจนขึ้น "เสร็จสมบูรณ์" — Chrome จะถามว่าดาวน์โหลดหลายไฟล์ไหม กด Allow
+
+   ต้องรันบนหน้า FMC เท่านั้น (same-origin) รันจากเว็บอื่นจะโดน CORS บล็อก
+   ============================================================================ */
+(async () => {
+'use strict';
+
+const VER = 'v1.0';
+const LIMIT = 1000;        // เพดานต่อ request ของ FMC
+const DELAY = 250;         // หน่วงระหว่าง request — FMC จำกัด 120 req/min
+const MAX_PAGES = 200;     // กันลูปไม่รู้จบถ้า API ตอบผิดรูปแบบ
+
+const C = { i:'color:#38bdf8;font-weight:bold', ok:'color:#34d399;font-weight:bold',
+            e:'color:#f87171;font-weight:bold', w:'color:#fbbf24;font-weight:bold' };
+const log  = (...a) => console.log('%c[FMC]', C.i,  ...a);
+const good = (...a) => console.log('%c[FMC]', C.ok, ...a);
+const warn = (...a) => console.log('%c[FMC]', C.w,  ...a);
+const bad  = (...a) => console.log('%c[FMC]', C.e,  ...a);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const num = n => (n ?? 0).toLocaleString();
+
+console.log('%c FMC Bulk Export ' + VER + ' ', 'background:#0ea5e9;color:#fff;font-size:14px;padding:3px 8px;border-radius:3px');
+
+// ── 1. ขอ token ────────────────────────────────────────────────────────────
+// FMC REST API ใช้ X-auth-access-token ไม่ใช่ cookie ของหน้าเว็บ จึงต้อง
+// generatetoken ก่อน แม้จะ login หน้าเว็บอยู่แล้วก็ตาม
+const user = prompt('FMC username (ต้องมีสิทธิ์ REST API)');
+if (!user) return bad('ยกเลิก');
+const pass = prompt('FMC password ของ ' + user);
+if (!pass) return bad('ยกเลิก');
+
+let TOKEN = null, DOMAIN = null;
+
+async function auth() {
+  const r = await fetch('/api/fmc_platform/v1/auth/generatetoken', {
+    method: 'POST',
+    headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) }
+  });
+  if (!r.ok) throw new Error('login ไม่ผ่าน (HTTP ' + r.status + ') — ตรวจ user/password และสิทธิ์ REST API');
+  TOKEN = r.headers.get('X-auth-access-token');
+  if (!TOKEN) throw new Error('ไม่ได้ token กลับมา — ถ้ารันจากหน้าอื่นที่ไม่ใช่ FMC เบราว์เซอร์จะซ่อน header นี้');
+  if (!DOMAIN) {
+    DOMAIN = r.headers.get('DOMAIN_UUID');
+    if (!DOMAIN) {                       // บาง build ส่ง list มาแทน
+      try { DOMAIN = (JSON.parse(r.headers.get('DOMAINS') || '[]')[0] || {}).uuid; } catch (e) {}
+    }
+  }
+  if (!DOMAIN) throw new Error('หา DOMAIN_UUID ไม่เจอ');
+}
+
+try { await auth(); } catch (e) { return bad(e.message); }
+const base = '/api/fmc_config/v1/domain/' + DOMAIN;
+good('login สำเร็จ — domain', DOMAIN);
+
+// ── 2. ตัวเรียก API พร้อม retry ────────────────────────────────────────────
+// 429 = โดน rate limit ให้ถอยแล้วลองใหม่, 401 = token หมดอายุให้ขอใหม่
+// 404/405 = endpoint ไม่มีใน FMC เวอร์ชันนี้ (เช่น tcpportobjects บน 7.6.5) ให้ข้าม
+async function api(path, tries = 4) {
+  for (let t = 1; t <= tries; t++) {
+    let r;
+    try { r = await fetch(path, { headers: { 'X-auth-access-token': TOKEN } }); }
+    catch (e) { if (t === tries) throw e; await sleep(1000 * t); continue; }
+    if (r.status === 404 || r.status === 405) return null;
+    if (r.status === 429) { warn('  โดน rate limit รอ ' + (3 * t) + ' วิ...'); await sleep(3000 * t); continue; }
+    if (r.status === 401) { warn('  token หมดอายุ ขอใหม่...'); await auth(); continue; }
+    if (!r.ok) throw new Error(path + ' → HTTP ' + r.status);
+    return r.json();
+  }
+  throw new Error(path + ' — ลองซ้ำครบแล้วยังไม่สำเร็จ');
+}
+
+// ── 3. ดึงทุกหน้า ──────────────────────────────────────────────────────────
+// ไม่พึ่ง paging.count เพราะ FMC แต่ละเวอร์ชันตีความไม่ตรงกัน (บางตัว count คือ
+// จำนวนทั้งหมด บางตัวคือจำนวนในหน้านั้น) — ใช้เกณฑ์ที่เชื่อถือได้กว่าคือ
+// "หน้าไหนได้น้อยกว่า limit แปลว่าหน้าสุดท้าย"
+async function getAll(url, label) {
+  const out = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const sep = url.includes('?') ? '&' : '?';
+    const j = await api(`${url}${sep}expanded=true&limit=${LIMIT}&offset=${page * LIMIT}`);
+    if (j === null) { warn(`  ${label}: ไม่มี endpoint นี้ใน FMC เวอร์ชันนี้ — ข้าม`); return []; }
+    const items = j.items || [];
+    out.push(...items);
+    log(`  ${label}: หน้า ${page + 1} +${num(items.length)} → รวม ${num(out.length)}`);
+    if (items.length < LIMIT) break;
+    await sleep(DELAY);
+  }
+  return out;
+}
+
+// ── 4. เลือก policy เมื่อมีหลายอัน ─────────────────────────────────────────
+async function listPolicies(kind) {
+  const j = await api(`${base}/policy/${kind}?limit=1000&offset=0`);
+  return (j && j.items) || [];
+}
+function choose(items, label) {
+  if (!items.length) { warn('ไม่พบ ' + label + ' — ข้าม'); return []; }
+  if (items.length === 1) { log(label + ': ' + items[0].name); return items; }
+  const ans = prompt(
+    `พบ ${label} ${items.length} รายการ:\n\n` +
+    items.map((p, i) => `${i + 1}. ${p.name}`).join('\n') +
+    `\n\nพิมพ์เลขที่ต้องการ (คั่นด้วย , ) หรือ all = เอาทั้งหมด`, 'all');
+  if (ans === null) throw new Error('ยกเลิก');
+  if (/^all$/i.test(ans.trim())) return items;
+  return ans.split(',').map(s => items[parseInt(s.trim(), 10) - 1]).filter(Boolean);
+}
+
+// ── 5. นิยามแต่ละ section ──────────────────────────────────────────────────
+const dedupe = arr => {
+  const seen = new Set();
+  return arr.filter(o => {
+    const k = o && o.id;
+    if (!k) return true;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+};
+
+const SECTIONS = {
+  policy: async () => {
+    const pols = choose(await listPolicies('accesspolicies'), 'Access Control Policy');
+    let all = [];
+    for (const p of pols) {
+      const rules = await getAll(`${base}/policy/accesspolicies/${p.id}/accessrules`, `accessrules [${p.name}]`);
+      rules.forEach(r => { r._policyName = p.name; });
+      all = all.concat(rules);
+    }
+    return all;
+  },
+  nat: async () => {
+    const pols = choose(await listPolicies('ftdnatpolicies'), 'NAT Policy');
+    let all = [];
+    for (const p of pols) {
+      for (const kind of ['manualnatrules', 'autonatrules']) {
+        const rules = await getAll(`${base}/policy/ftdnatpolicies/${p.id}/${kind}`, `${kind} [${p.name}]`);
+        rules.forEach(r => { r._policyName = p.name; });
+        all = all.concat(rules);
+      }
+    }
+    return all;
+  },
+  objects: async () => {
+    let all = [];
+    for (const e of ['hosts', 'networks', 'ranges', 'networkgroups'])
+      all = all.concat(await getAll(`${base}/object/${e}`, e));
+    return dedupe(all);
+  },
+  services: async () => {
+    // protocolportobjects = ทางใหม่ (รวม TCP+UDP), tcp/udpportobjects = ทางเก่า
+    // ยิงทั้งคู่แล้ว dedupe ด้วย id เพื่อให้ใช้ได้ทุกเวอร์ชันโดยไม่ต้องแก้สคริปต์
+    let all = [];
+    for (const e of ['protocolportobjects', 'tcpportobjects', 'udpportobjects', 'icmpv4objects', 'portobjectgroups'])
+      all = all.concat(await getAll(`${base}/object/${e}`, e));
+    return dedupe(all);
+  }
+};
+
+// ── 6. ดาวน์โหลด ───────────────────────────────────────────────────────────
+function download(name, items) {
+  const blob = new Blob([JSON.stringify({ items }, null, 0)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// ── 7. รัน ─────────────────────────────────────────────────────────────────
+const stamp = new Date().toISOString().slice(0, 10);
+const result = {};
+const t0 = Date.now();
+
+for (const [sec, fn] of Object.entries(SECTIONS)) {
+  console.group('%c▶ ' + sec, C.i);
+  try {
+    result[sec] = await fn();
+    good(`${sec}: ${num(result[sec].length)} รายการ`);
+  } catch (e) {
+    bad(`${sec} ล้มเหลว: ${e.message}`);
+    result[sec] = [];
+  }
+  console.groupEnd();
+}
+
+// เก็บไว้บน window เผื่อ Chrome บล็อกดาวน์โหลด จะได้ไม่ต้องดึงใหม่
+window.FMC_EXPORT = result;
+
+Object.entries(result).forEach(([sec, items]) => {
+  if (!items.length) return;
+  download(`fmc_${sec}_${stamp}.json`, items);
+});
+
+const secs = ((Date.now() - t0) / 1000).toFixed(0);
+console.log('%c เสร็จสมบูรณ์ ใน ' + secs + ' วินาที ',
+  'background:#059669;color:#fff;font-size:14px;padding:3px 8px;border-radius:3px');
+console.table(Object.entries(result).map(([k, v]) => ({ section: k, items: v.length })));
+log('ถ้าไฟล์ไม่ถูกดาวน์โหลด (Chrome บล็อก) ข้อมูลยังอยู่ใน window.FMC_EXPORT');
+log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.stringify({items:window.FMC_EXPORT.objects}))');
+
+})();
+</script>
 
 <!-- SECTION TABS -->
 <div id="secbar">
@@ -639,7 +936,7 @@ GET /object/portobjectgroups?expanded=true&limit=1000</pre>
 
 <script>
 'use strict';
-const VER = 'v3.7.2';
+const VER = 'v3.8.0';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
@@ -690,6 +987,47 @@ function startIdleLogout() {
 // ── Help modal ────────────────────────────────────────────────────────────────
 function toggleHelp(open) {
   document.getElementById('help-overlay').classList.toggle('open', open);
+}
+
+// ── FMC Export modal ──────────────────────────────────────────────────────────
+// เก็บสคริปต์ไว้ใน <script type="text/plain"> เพราะเบราว์เซอร์จะไม่รันมัน แต่ยัง
+// อ่าน textContent ได้ — ไม่ต้อง escape backslash/quote แบบเก็บใน JS string
+function expScript() {
+  return document.getElementById('fmc-src').textContent.trim();
+}
+function toggleExp(open) {
+  const ov = document.getElementById('exp-overlay');
+  if (open && !document.getElementById('exp-code').textContent) {
+    const src = expScript();
+    document.getElementById('exp-code').textContent = src;
+    document.getElementById('exp-size').textContent =
+      src.split('\n').length.toLocaleString() + ' บรรทัด · ' + Math.round(src.length / 1024) + ' KB';
+  }
+  ov.classList.toggle('open', open);
+}
+async function copyExpScript() {
+  const btn = document.getElementById('exp-copy-btn');
+  const src = expScript();
+  let ok = false;
+  // navigator.clipboard ใช้ได้เฉพาะ HTTPS/localhost — เปิดไฟล์จากดิสก์ตรงๆ จะไม่มี
+  // จึงต้องมีทางถอยเป็น execCommand ไม่งั้นปุ่มจะตายเงียบตอนเปิดแบบ file://
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(src); ok = true; }
+  } catch (e) {}
+  if (!ok) {
+    const ta = document.createElement('textarea');
+    ta.value = src;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+  btn.textContent = ok ? '✓ คัดลอกแล้ว — ไปวางใน Console' : '✗ คัดลอกไม่ได้ ให้เลือกโค้ดด้านล่างแล้ว Ctrl+C';
+  btn.classList.toggle('done', ok);
+  setTimeout(() => { btn.textContent = '📋 Copy สคริปต์'; btn.classList.remove('done'); }, 4000);
+}
+function dlExpScript() {
+  dlFile('fmc_export_console.js', expScript(), 'text/javascript;charset=utf-8');
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
