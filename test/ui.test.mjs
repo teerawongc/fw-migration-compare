@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 const ROOT = process.env.REPO_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const htmlPath = path.join(ROOT, 'fw_policy_compare.html');
 const jsPath = path.join(ROOT, 'fmc_export_console.js');
+const trPath = path.join(ROOT, 'fmc_timerange_console.js');
 
 const html = fs.readFileSync(htmlPath, 'utf8');
 // เลขเวอร์ชันอ่านจากไฟล์เอง ไม่ hardcode — ไม่งั้นเทสจะแดงทุกครั้งที่ bump version
@@ -32,6 +33,7 @@ console.log('\n=== หน้าโหลดขึ้น ===');
 ok(`เลขเวอร์ชันมุมบนอัปเดตจาก JS (${WANT_VER})`, $('ver').textContent === WANT_VER);
 ok('ชื่อแท็บเบราว์เซอร์ตรงกับ const VER', window.document.title.includes(WANT_VER));
 ok('ปุ่ม FMC Export มีอยู่จริง', !!$('exp-btn'));
+ok('ปุ่ม Time Range มีอยู่จริง', !!$('tr-btn'));
 ok('modal เริ่มต้นปิดอยู่', !$('exp-overlay').classList.contains('open'));
 ok('กล่องโค้ดยังว่าง (lazy render)', $('exp-code').textContent === '');
 
@@ -58,6 +60,29 @@ ok('ยิง protocolportobjects ก่อน',
 ok('ถอยไป tcp/udp เฉพาะตอนตัวใหม่ไม่มีข้อมูล',
    svcFn.indexOf('if (!all.length)') < svcFn.indexOf("'tcpportobjects'"));
 
+console.log('\n=== Time Range modal ===');
+window.toggleTR(true);
+const trCode = $('tr-code').textContent;
+const trOrig = fs.readFileSync(trPath, 'utf8').trim();
+ok('modal เปิด', $('tr-overlay').classList.contains('open'));
+ok('โค้ดตรงกับไฟล์ต้นฉบับ (ไม่สน CRLF/LF)', noCR(trCode) === noCR(trOrig));
+ok('ไม่มี HTML entity หลงเหลือ', !/&(amp|lt|gt|quot);/.test(trCode));
+let trSyntaxOk = true;
+try { new window.Function(trCode); } catch (e) { trSyntaxOk = false; console.log('     → ' + e.message); }
+ok('syntax ถูกต้อง รันได้', trSyntaxOk);
+ok(`ป้ายบอกขนาด: ${$('tr-size').textContent}`, /บรรทัด/.test($('tr-size').textContent));
+// กันพลาดซ้ำรอยเดิม: PUT ของ FMC เป็น full-replace ถ้าไม่ GET ก่อนจะทำ source/dest หาย
+ok('GET rule ตัวเต็มก่อน PUT', trCode.includes("api('GET', '/policy/accesspolicies/' + policy.id + '/accessrules/' + rid)"));
+ok('ส่ง body เดิมทั้งก้อน ไม่ประกอบใหม่', trCode.includes('JSON.parse(JSON.stringify(cur))'));
+ok('เทียบ fingerprint หลัง PUT', trCode.includes('after !== before'));
+ok('ยิงทีละ 100 ต่ำกว่าเพดาน 1000', /const\s+CHUNK\s*=\s*100/.test(trCode));
+ok('default เป็นโหมดทดลอง', trCode.includes("const DRY = !/^go$/i.test(mode.trim())"));
+ok('จับ rule ที่ FMT แตกออกเป็นหลายอัน', trCode.includes("r.name.startsWith(prefix + '_')"));
+ok('รวม Time Range เดิมไม่เขียนทับ', trCode.includes('[...new Set([...have, ...want])]'));
+ok('validate วันสิ้นสุดต้องหลังวันเริ่ม', trCode.includes('o.effectiveEndDateTime <= o.effectiveStartDateTime'));
+window.toggleTR(false);
+ok('tr modal ปิด', !$('tr-overlay').classList.contains('open'));
+
 console.log('\n=== ปิด modal / ไม่กระทบ help modal เดิม ===');
 window.toggleExp(false);
 ok('exp modal ปิด', !$('exp-overlay').classList.contains('open'));
@@ -68,7 +93,8 @@ ok('help modal ยังปิดได้', !$('help-overlay').classList.contai
 
 console.log('\n=== ฟังก์ชันหลักยังอยู่ครบ ===');
 ['runCmp', 'markOrder', 'mergeFmcPolicy', 'reconcilePolicy', 'mergeSplitRules',
- 'gotoSec', 'exportCSV', 'exportJSON', 'toggleDir', 'toggleExp', 'copyExpScript']
+ 'gotoSec', 'exportCSV', 'exportJSON', 'toggleDir', 'toggleExp', 'copyExpScript',
+ 'toggleTR', 'copyTrScript', 'dlTrScript', 'copyToClip']
   .forEach(f => ok(f, typeof window[f] === 'function'));
 
 console.log(`\nรวม: ${pass} PASS, ${fail} FAIL`);

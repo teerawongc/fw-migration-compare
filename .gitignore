@@ -36,3 +36,6 @@ src/index.js
 Thumbs.db
 .vscode/
 .idea/
+
+# เครื่องมือ agent ในเครื่อง ไม่เกี่ยวกับตัวโปรเจกต์
+.claude/
