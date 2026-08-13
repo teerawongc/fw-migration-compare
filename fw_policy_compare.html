@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.12.1</title>
+<title>FW Migration Comparator v3.12.2</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -453,7 +453,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.12.1</span>
+  <span id="ver">v3.12.2</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -888,7 +888,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
 </script>
 
 <script type="text/plain" id="tr-src">/* ============================================================================
-   FMC Time Range — Create & Bind  v1.1
+   FMC Time Range — Create & Bind  v1.2
    สร้าง Time Range เข้า FMC แล้วผูกกลับเข้า Access Rule ให้อัตโนมัติ
 
    ทำไมต้องมีสคริปต์นี้: FMT (Firepower Migration Tool) แปลง time object ของ
@@ -917,7 +917,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
 (async () => {
 'use strict';
 
-const VER      = 'v1.1';
+const VER      = 'v1.2';
 const LIMIT    = 1000;   // เพดานต่อ request ของ FMC
 const CHUNK    = 100;    // object ต่อ 1 bulk request — เล็กกว่าเพดานเพื่อจำกัดความเสียหายเวลา rollback
 const DELAY    = 250;    // หน่วงระหว่าง request — FMC จำกัด 120 req/min
@@ -978,10 +978,29 @@ try { await auth(); } catch (e) { return bad(e.message); }
 const base = '/api/fmc_config/v1/domain/' + DOMAIN;
 good('login สำเร็จ — domain', DOMAIN);
 
-// ── 2. ตัวเรียก API พร้อม retry ────────────────────────────────────────────
+// ── 2. คุมจังหวะไม่ให้เกินโควตา ────────────────────────────────────────────
+// FMC จำกัด 120 request/นาที ต่อ token — การผูก rule ใช้ 2 request ต่อ 1 rule
+// (GET ตัวเต็ม + PUT) ถ้าปล่อยยิงรัวๆ 738 rule จะชน 429 ตั้งแต่ครึ่งทาง แล้ว
+// ติดหล่ม retry ยาว เพราะโควตาไม่ทันฟื้น จึงต้องคุมที่ต้นทางแทนการไปแก้ปลายทาง
+// เก็บเวลาที่ยิงไปในหน้าต่าง 60 วินาทีล่าสุด ถ้าจะเกินเพดานก็รอจนกว่าคำขอที่เก่า
+// ที่สุดจะหลุดออกจากหน้าต่าง
+const RATE = 100;          // ต่ำกว่าเพดานจริง 120 ไว้เผื่อ request จากหน้าเว็บ FMC ที่เปิดค้างอยู่
+let hits = [];
+async function throttle() {
+  for (;;) {
+    const now = Date.now();
+    hits = hits.filter(t => now - t < 60000);
+    if (hits.length < RATE) { hits.push(now); return; }
+    const wait = 60000 - (now - hits[0]) + 50;
+    if (wait > 1500) log('  ถึงโควตา ' + RATE + ' req/นาที — พัก ' + Math.ceil(wait / 1000) + ' วิ');
+    await sleep(wait);
+  }
+}
+
+// ── ตัวเรียก API พร้อม retry ───────────────────────────────────────────────
 // คืน {status, body} เสมอ ไม่ throw เมื่อ FMC ตอบ 4xx เพราะหลายจุดต้องอ่าน
 // ข้อความ error มาแสดงให้ผู้ใช้ (เช่นบอกว่า object ตัวไหนชื่อซ้ำ)
-async function api(method, path, body, tries = 4) {
+async function api(method, path, body, tries = 8) {
   for (let t = 1; t <= tries; t++) {
     let r;
     const opt = { method, headers: { 'X-auth-access-token': TOKEN } };
@@ -989,9 +1008,17 @@ async function api(method, path, body, tries = 4) {
       opt.headers['Content-Type'] = 'application/json';
       opt.body = JSON.stringify(body);
     }
+    await throttle();
     try { r = await fetch(base + path, opt); }
     catch (e) { if (t === tries) throw e; await sleep(1000 * t); continue; }
-    if (r.status === 429) { warn('  โดน rate limit รอ ' + (3 * t) + ' วิ...'); await sleep(3000 * t); continue; }
+    if (r.status === 429) {
+      // โดนแล้วแปลว่าโควตาหมดจริง ต้องรอให้หน้าต่างฟื้น ไม่ใช่ถอยทีละ 3 วิ
+      const wait = Math.min(60000, 10000 * t);
+      warn('  โดน rate limit รอ ' + Math.round(wait / 1000) + ' วิ (ครั้งที่ ' + t + '/' + tries + ')');
+      hits = [];                       // ล้างตัวนับ เริ่มจับจังหวะใหม่หลังพัก
+      await sleep(wait);
+      continue;
+    }
     if (r.status === 401) { warn('  token หมดอายุ ขอใหม่...'); await auth(); continue; }
     let j = null;
     const txt = await r.text();
@@ -1288,12 +1315,28 @@ let okN = 0, skipN = 0, failN = 0;
 const t0 = Date.now();
 let idx = 0;
 
+// ห่อทั้งลูปไว้ เพื่อให้ยังได้รายงานออกมาแม้จะพังกลางทาง — งานนี้ใช้เวลาเป็น
+// สิบนาที ถ้าพังแล้วไม่รู้ว่าทำถึงไหนจะเสียเวลามาไล่ดูใน FMC ทีละ rule
+try {
 for (const [rid, item] of plan) {
   idx++;
   const want = [...item.names];
   const label = '[' + idx + '/' + plan.size + '] ' + item.rule.name;
 
-  // ต้อง GET ตัวเต็มก่อนเสมอ — ตัวที่ได้จาก list ยังไม่ครบทุก field
+  // เช็คจาก list ที่โหลดมาแล้ว (expanded=true มี timeRangeObjects ติดมาด้วย)
+  // ก่อนตัดสินใจ GET — ทำให้รันซ้ำหลังพังกลางทางแทบไม่กิน request เลย
+  const listed = (item.rule.timeRangeObjects || []).map(o => o.name);
+  if (want.every(n => listed.includes(n))) {
+    skipN++;
+    report.push([item.rule.name, rid, want.join('|'), 'SKIP', 'ผูกไว้อยู่แล้ว']); continue;
+  }
+
+  if (DRY) {
+    okN++; log(label + ' — จะผูก: ' + want.join(', '));
+    report.push([item.rule.name, rid, want.join('|'), 'DRY', 'จะผูก ' + want.join('|')]); continue;
+  }
+
+  // ต้อง GET ตัวเต็มก่อน PUT เสมอ — ตัวที่ได้จาก list ยังไม่ครบทุก field
   const g = await api('GET', '/policy/accesspolicies/' + policy.id + '/accessrules/' + rid);
   if (!g.ok) { failN++; bad(label + ' — อ่าน rule ไม่ได้: ' + errMsg(g));
                report.push([item.rule.name, rid, want.join('|'), 'FAIL', 'GET ' + errMsg(g)]); continue; }
@@ -1301,17 +1344,8 @@ for (const [rid, item] of plan) {
   const cur = g.body;
   const have = (cur.timeRangeObjects || []).map(o => o.name);
   const merged = [...new Set([...have, ...want])];
-  if (merged.length === have.length && want.every(n => have.includes(n))) {
-    skipN++; log(label + ' — ผูกไว้อยู่แล้ว ข้าม');
-    report.push([item.rule.name, rid, want.join('|'), 'SKIP', 'มีอยู่แล้ว']); continue;
-  }
   if (merged.length > 1)
     warn(label + ' — จะมี Time Range ' + merged.length + ' ตัวบน rule เดียว (' + merged.join(', ') + ')');
-
-  if (DRY) {
-    okN++; log(label + ' — จะผูก: ' + want.join(', '));
-    report.push([item.rule.name, rid, want.join('|'), 'DRY', 'จะผูก ' + merged.join('|')]); continue;
-  }
 
   // ส่ง body เดิมทั้งก้อน ตัดเฉพาะ metadata/links ที่เป็นของอ่านอย่างเดียว
   const body = JSON.parse(JSON.stringify(cur));
@@ -1323,9 +1357,9 @@ for (const [rid, item] of plan) {
   if (!p.ok) { failN++; bad(label + ' — PUT ไม่ผ่าน: ' + errMsg(p));
                report.push([item.rule.name, rid, want.join('|'), 'FAIL', 'PUT ' + errMsg(p)]); continue; }
 
-  // อ่านกลับมาเทียบ — ถ้าของหายต้องหยุดทั้งงานทันที ไม่ใช่ปล่อยพังไปเรื่อยๆ
-  const v = await api('GET', '/policy/accesspolicies/' + policy.id + '/accessrules/' + rid);
-  const after = v.ok ? fp(v.body) : null;
+  // FMC คืน rule ตัวเต็มหลัง PUT มาให้อยู่แล้ว ใช้ตัวนั้นตรวจได้เลย ไม่ต้อง GET ซ้ำ
+  // — ประหยัดไป 1 ใน 3 ของ request ทั้งงาน ซึ่งคือส่วนที่ทำให้ชน 429 ตั้งแต่แรก
+  const after = fp(p.body);
   if (after !== before) {
     failN++;
     bad(label + ' — ⚠ ข้อมูลใน rule เปลี่ยนไปหลัง PUT! หยุดทั้งงานเพื่อไม่ให้เสียหายเพิ่ม');
@@ -1334,7 +1368,7 @@ for (const [rid, item] of plan) {
     report.push([item.rule.name, rid, want.join('|'), 'ABORT', 'fingerprint ไม่ตรง']);
     break;
   }
-  const got = (v.body.timeRangeObjects || []).map(o => o.name);
+  const got = (p.body.timeRangeObjects || []).map(o => o.name);
   if (!want.every(n => got.includes(n))) {
     failN++; bad(label + ' — PUT ผ่านแต่ Time Range ไม่ติด: ' + got.join(', '));
     report.push([item.rule.name, rid, want.join('|'), 'FAIL', 'ไม่ติด ได้ ' + got.join('|')]); continue;
@@ -1347,7 +1381,10 @@ for (const [rid, item] of plan) {
          '(เหลืออีกราว ' + Math.round(el / idx * (plan.size - idx)) + ' วิ)');
   }
   report.push([item.rule.name, rid, want.join('|'), 'OK', got.join('|')]);
-  await sleep(60);
+}
+} catch (e) {
+  bad('หยุดกลางทางที่ rule ที่ ' + idx + '/' + plan.size + ': ' + e.message);
+  warn('รันสคริปต์ใหม่ได้เลย — rule ที่ผูกไปแล้วจะขึ้น SKIP แล้วทำต่อจากจุดที่ค้าง');
 }
 
 // ── 15. สรุป + ดาวน์โหลดรายงาน ─────────────────────────────────────────────
@@ -1527,7 +1564,7 @@ log('ผลลัพธ์เต็มอยู่ใน window.TR_RESULT');
 
 <script>
 'use strict';
-const VER = 'v3.12.1';
+const VER = 'v3.12.2';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
