@@ -159,6 +159,35 @@ console.log('\n=== v3.10.0 · การเทียบค่า port/type ที
      np(byName['FW1_Encapsulation'].port) === np('94'));
 }
 
+console.log('\n=== v3.11.0 · Time / ตารางเวลา ที่ FMT ไม่ย้ายให้ ===');
+{
+  // <time> ของ CP ไม่ได้ห่อด้วย <reference> เหมือน src/dst — ถ้า parser ใช้วิธี
+  // เดียวกันจะได้ list ว่างเสมอ และพลาด rule ที่ตั้งวันหมดอายุไว้ทั้งหมด
+  const parsePolicy = w.eval('parsePolicy');
+  const xml = `<root><rule><Class_Name>security_rule</Class_Name><Rule_Number>19</Rule_Number>
+    <action><type>accept</type></action>
+    <time><Name>E311022</Name><Table>times</Table></time></rule>
+    <rule><Class_Name>security_rule</Class_Name><Rule_Number>20</Rule_Number>
+    <action><type>accept</type></action>
+    <time><Name>Any</Name></time></rule></root>`;
+  const p = parsePolicy(xml);
+  ok('อ่าน <time> ที่ไม่มี <reference> ได้',  p.find(r => r.num === 19)?.time?.[0] === 'E311022');
+  ok('time = Any ถือว่าไม่ได้ผูกเวลา',        (p.find(r => r.num === 20)?.time || []).length === 0);
+
+  const r = run([Object.assign(CP({ num:19 }), { time:['E311022'] })],
+                [FM({ num:19, name:'Rule_#19' })]);
+  ok('CP มีเวลา แต่ FMC ไม่มี → Mismatch',     r[0].status === 'mismatch');
+  const d = r[0].diffs.find(x => x.f === 'Time');
+  ok('ติดธง severe (เปิดค้างตลอดไป)',          !!d?.severe);
+  ok('บอกชัดว่าฝั่ง FMC ไม่มีเวลา',            /ไม่มี/.test(d?.fv || ''));
+
+  const r2 = run([Object.assign(CP({ num:20 }), { time:['E311022'] })],
+                 [Object.assign(FM({ num:20, name:'Rule_#20' }), { time:['E311022'] })]);
+  ok('ทั้งสองฝั่งมีเวลาตรงกัน → Match',        r2[0].status === 'ok');
+  const r3 = run([CP({ num:21 })], [FM({ num:21, name:'Rule_#21' })]);
+  ok('ทั้งสองฝั่งไม่มีเวลา → Match',           r3[0].status === 'ok');
+}
+
 console.log('\n=== v3.9.0 · UI ของสถานะ ตรวจซ้ำ ===');
 {
   run([CP({ num:1, svc:['X'] }), CP({ num:2, svc:['Y'] })],

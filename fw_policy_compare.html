@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.10.0</title>
+<title>FW Migration Comparator v3.11.0</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -439,7 +439,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.10.0</span>
+  <span id="ver">v3.11.0</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -902,6 +902,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
     <label class="opt-row"><input type="checkbox" id="o-dst" checked> เช็ค Destination</label>
     <label class="opt-row"><input type="checkbox" id="o-svc" checked> เช็ค Service / Port</label>
     <label class="opt-row"><input type="checkbox" id="o-st"  checked> เช็ค Enable/Disable</label>
+    <label class="opt-row" title="CP ผูก rule กับ time object เพื่อให้หมดอายุเอง — ถ้า FMC ไม่มีเวลา rule จะเปิดค้างตลอดไป"><input type="checkbox" id="o-tm" checked> เช็ค Time / ตารางเวลา</label>
     <label class="opt-row"><input type="checkbox" id="o-mrg" checked onchange="if(RES[curSec].length)runCmp()"> รวม rule ที่ FMT แยก (Rule#N-1/-2)</label>
     <label class="opt-row"><input type="checkbox" id="o-ord" checked onchange="if(RES[curSec].length)runCmp()"> ตรวจลำดับ rule (Order)</label>
     <div class="opt-row" style="display:block;cursor:default">
@@ -958,7 +959,7 @@ log('ดาวน์โหลดซ้ำทีละอัน:  copy(JSON.strin
 
 <script>
 'use strict';
-const VER = 'v3.10.0';
+const VER = 'v3.11.0';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
@@ -1226,8 +1227,11 @@ function normPolicy(r, i) {
   // ระบุไว้ (หมายถึง "Any" — พบบ่อยมาก) กลายเป็น [] แทนที่จะเป็น ['Any'] ทำให้ขึ้น
   // Diff "Service" ปลอมแทบทุก rule ที่ควรจะ Match — ต้องเช็ค .length แทน
   const srcArr = go(r.sourceNetworks), dstArr = go(r.destinationNetworks), svcArr = go(r.destinationPorts);
+  // FMC เก็บตารางเวลาไว้ใน timeRangeObjects (FTD 6.6+) — ถ้า rule ไม่ผูกเวลา field นี้จะหายไปเลย
+  const tmArr = (r.timeRangeObjects || []).map(o => o.name || '').filter(Boolean);
   return { num:+num||i+1, name:r.name||'', action:act, enabled:r.enabled!==false,
-    src: srcArr.length?srcArr:['Any'], dst: dstArr.length?dstArr:['Any'], svc: svcArr.length?svcArr:['Any'] };
+    src: srcArr.length?srcArr:['Any'], dst: dstArr.length?dstArr:['Any'], svc: svcArr.length?svcArr:['Any'],
+    time: tmArr };
 }
 function normNat(r, i) {
   const go = o => o?.name || o?.value || 'Any';
@@ -1252,8 +1256,18 @@ function parsePolicy(xml) {
     rule.querySelectorAll('action type').forEach(t => { if (['accept','drop','reject'].includes(t.textContent.trim())) action = t.textContent.trim(); });
     const refs = sel => { const c = rule.querySelector(':scope > ' + sel); if (!c) return [];
       return [...c.querySelectorAll('reference')].map(r => { const n = r.querySelector('Name'); return n ? n.textContent.trim() : ''; }).filter(Boolean); };
+    // <time> = ตารางเวลาที่ผูกกับ rule (Check Point เรียก time object)
+    // ที่ GHB ตั้งชื่อแบบเข้ารหัสวันหมดอายุ เช่น E311226 = Expire 31/12/26
+    // rule พวกนี้ตั้งใจให้หมดอายุเอง ถ้า migrate ไปแล้วเวลาหาย = เปิดค้างตลอดไป
+    // ต่างจาก src/dst/services ตรงที่ <time> ไม่ได้ห่อด้วย <reference> —
+    // ผูก object เดียวจะเขียน <time><Name>E311226</Name><Table>times</Table></time>
+    // ตรงๆ ถ้าใช้ refs() แบบเดียวกับ field อื่นจะได้ list ว่างเสมอ (พลาดทั้ง 739 rule)
+    const tmEl = rule.querySelector(':scope > time');
+    const tm = tmEl ? [...tmEl.querySelectorAll('Name')].map(n => n.textContent.trim())
+                        .filter(n => n && n.toLowerCase() !== 'any') : [];
     rules.push({ num:parseInt(numEl.textContent), name:get('name')||get('n')||'', action, disabled:get('disabled')==='true',
-      src:refs('src')||['Any'], dst:refs('dst')||['Any'], svc:refs('services')||['Any'], comment:get('comments') });
+      src:refs('src')||['Any'], dst:refs('dst')||['Any'], svc:refs('services')||['Any'],
+      time: tm, comment:get('comments') });
   });
   return rules.sort((a,b) => a.num - b.num);
 }
@@ -1329,6 +1343,7 @@ function runCmp() {
   const chkDst  = document.getElementById('o-dst').checked;
   const chkSvc  = document.getElementById('o-svc').checked;
   const chkSt   = document.getElementById('o-st').checked;
+  const chkTm   = document.getElementById('o-tm').checked;
   const chkMrg  = document.getElementById('o-mrg').checked;
   const chkOrd  = document.getElementById('o-ord').checked;
   loadSuffixes();
@@ -1367,6 +1382,15 @@ function runCmp() {
       addList(chkDst, 'Dest',    cp?.dst, fm?.dst);
       addList(chkSvc, 'Service', cp?.svc, fm?.svc);
       if (chkSt  && cp && fm && cp.disabled === fm.enabled) diffs.push({ f:'Status', cv:cp.disabled?'DISABLED':'ENABLED', fv:fm.enabled?'ENABLED':'DISABLED' });
+      // Time/Schedule — จุดที่หลุดง่ายที่สุดเพราะ FMT ไม่ย้าย time object ให้
+      // rule ที่ CP ตั้งวันหมดอายุไว้ พอ FMC ไม่มีเวลา = เปิดค้างถาวร ต้องเตือนแรง
+      if (chkTm && cp && fm) {
+        const ct = cp.time || [], ft = fm.time || [];
+        if (ct.length && !ft.length)
+          diffs.push({ f:'Time', cv:ct.join('; '), fv:'(ไม่มี — เปิดตลอดเวลา)', severe:true });
+        else if (!amatch(ct.length?ct:['Any'], ft.length?ft:['Any']))
+          diffs.push({ f:'Time', cv:ct.join('; ')||'Any', fv:ft.join('; ')||'Any' });
+      }
       // ถ้าทุกจุดที่ต่างเป็นเรื่อง suffix ล้วน → "ตรวจซ้ำ" ไม่ใช่ Mismatch
       const hard = diffs.filter(d => !d.review);
       res.push({ status: !diffs.length ? 'ok' : (hard.length ? 'mismatch' : 'review'), cp, fmc:fm, diffs });
@@ -1882,7 +1906,7 @@ function renderTable() {
         <td class="act-${cp?.action}">${cp?cp.action.toUpperCase():'—'}</td>
         <td class="act-${fm?.action}">${fm?fm.action.toUpperCase():'—'}</td>
         <td>${pills(cp?.src,sd,CP.objects)}</td><td>${pills(cp?.dst,dd,CP.objects)}</td><td>${pills(cp?.svc,vd,CP.services)}</td>
-        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.review?'<span style="color:#93c5fd">'+d.f+'</span>':d.f).join(', ')}${ordBad?(r.diffs.length?', ':'')+'<span style="color:#f472b6">Order</span>':''}</td></tr>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>d.review?'<span style="color:#93c5fd">'+d.f+'</span>':d.severe?'<span style="color:#f87171;font-weight:800">⏰'+d.f+'</span>':d.f).join(', ')}${ordBad?(r.diffs.length?', ':'')+'<span style="color:#f472b6">Order</span>':''}</td></tr>
         <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="10" style="padding:0">${detPanel(r,sec)}</td></tr>`;
     }).join('');
 
@@ -2012,7 +2036,7 @@ function detPanel(r, sec) {
   if (sec==='policy')  fields += df('ลำดับ (CP/FMC)', cp?.num, fm ? ((fm.parts||1)>1 ? fm.num+'–'+fm.numMax : fm.num) : null, !!r.orderBad) + posShift
     + (r.order && !r.order.ok ? `<div class="det-field"><span class="det-key">Order</span><span class="det-val diff" style="color:#f472b6">⇅ ลำดับไม่ตรงกับ CP — CP ลำดับที่ ${r.order.cpSeq} แต่ FMC วางไว้ตำแหน่ง ${r.order.fmcSeq} (${r.order.moved==='up'?'เลื่อนขึ้นมาก่อน rule ที่ควรมาก่อน — เสี่ยงบัง (shadow) rule อื่น':'ตกไปอยู่หลัง rule ที่ควรตามหลัง — เสี่ยงถูก rule อื่นบัง'}, ข้าม ${r.order.jumped} rule)</span></div>` : '')
     + ((fm?.parts||1)>1 ? `<div class="det-field"><span class="det-key">FMT Split</span><span class="det-val" style="color:#7dd3fc">⧉ FMT แยก CP rule นี้เป็น ${fm.parts} rule (object เกินเพดานต่อ rule) — รวม object ทุกส่วนแล้วเทียบเป็นก้อนเดียว<br><span style="color:var(--muted)">${esc(fm.partNames.join('  |  '))}</span></span></div>` : '')
-    + df('Action',(cp?.action||'').toUpperCase(),(fm?.action||'').toUpperCase())+dfList('Source',cp?.src,fm?.src,CP.objects,FMC.objects)+dfList('Dest',cp?.dst,fm?.dst,CP.objects,FMC.objects)+dfList('Service',cp?.svc,fm?.svc,CP.services,FMC.services)+df('Status',cp?.disabled?'DISABLED':'ENABLED',fm?.enabled?'ENABLED':'DISABLED');
+    + df('Action',(cp?.action||'').toUpperCase(),(fm?.action||'').toUpperCase())+dfList('Source',cp?.src,fm?.src,CP.objects,FMC.objects)+dfList('Dest',cp?.dst,fm?.dst,CP.objects,FMC.objects)+dfList('Service',cp?.svc,fm?.svc,CP.services,FMC.services)+df('Status',cp?.disabled?'DISABLED':'ENABLED',fm?.enabled?'ENABLED':'DISABLED')+df('Time / ตารางเวลา',(cp?.time||[]).join('; ')||'Any',(fm?.time||[]).join('; ')||'Any');
   if (sec==='nat')     fields += df('#',cp?.num,fm?.num)+df('Type',cp?.natType,fm?.natType)+df('Orig Src',cp?.origSrc,fm?.origSrc)+df('Trans Src',cp?.transSrc,fm?.transSrc)+df('Orig Dst',cp?.origDst,fm?.origDst)+df('Trans Dst',cp?.transDst,fm?.transDst);
   if (sec==='objects') fields += df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Value',cp?.value,fm?.value);
   if (sec==='services')fields += df('Name',cp?.name,fm?.name)+df('Type',cp?.type,fm?.type)+df('Port',cp?.port,fm?.port);
@@ -2030,7 +2054,7 @@ function togDet(i) {
 // ── Export ────────────────────────────────────────────────────────────────────
 function exportCSV() {
   const sec = curSec, res = RES[sec] || [];
-  const H = { policy:['Status','CP_Seq','FMC_Seq','Order_OK','Order_Note','FMT_Parts','FMC_Rule_Names','Name','CP_Action','FMC_Action','CP_Src','CP_Dst','CP_Svc','FMC_Src','FMC_Dst','FMC_Svc','Diff'],
+  const H = { policy:['Status','CP_Seq','FMC_Seq','Order_OK','Order_Note','FMT_Parts','FMC_Rule_Names','Name','CP_Action','FMC_Action','CP_Src','CP_Dst','CP_Svc','FMC_Src','FMC_Dst','FMC_Svc','CP_Time','FMC_Time','Diff'],
               nat:    ['Status','#','CP_Type','CP_OrigSrc','CP_TransSrc','CP_OrigDst','CP_TransDst','Diff'],
               objects:['Status','Name','CP_Type','CP_Value','FMC_Type','FMC_Value','Diff'],
               services:['Status','Name','CP_Type','CP_Port','FMC_Type','FMC_Port','Diff'] };
@@ -2042,6 +2066,7 @@ function exportCSV() {
       r.cp?.name||'', r.cp?.action?.toUpperCase()||'', r.fmc?.action?.toUpperCase()||'',
       (r.cp?.src||[]).join('; '),(r.cp?.dst||[]).join('; '),(r.cp?.svc||[]).join('; '),
       (r.fmc?.src||[]).join('; '),(r.fmc?.dst||[]).join('; '),(r.fmc?.svc||[]).join('; '),
+      (r.cp?.time||[]).join('; '),(r.fmc?.time||[]).join('; '),
       r.diffs.map(d=>d.f).join(', ') + (r.orderBad ? (r.diffs.length?', ':'') + 'Order' : '')],
     nat:     r => [r.status,r.cp?.num??r.fmc?.num,r.cp?.natType||'',r.cp?.origSrc||'',r.cp?.transSrc||'',r.cp?.origDst||'',r.cp?.transDst||'',r.diffs.map(d=>d.f).join(', ')],
     objects: r => [r.status,r.cp?.name||r.fmc?.name||'',r.cp?.type||'',r.cp?.value||'',r.fmc?.type||'',r.fmc?.value||'',r.diffs.map(d=>d.f).join(', ')],
