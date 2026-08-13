@@ -1,5 +1,5 @@
 /* ============================================================================
-   FMC Time Range — Create & Bind  v1.0
+   FMC Time Range — Create & Bind  v1.1
    สร้าง Time Range เข้า FMC แล้วผูกกลับเข้า Access Rule ให้อัตโนมัติ
 
    ทำไมต้องมีสคริปต์นี้: FMT (Firepower Migration Tool) แปลง time object ของ
@@ -28,7 +28,7 @@
 (async () => {
 'use strict';
 
-const VER      = 'v1.0';
+const VER      = 'v1.1';
 const LIMIT    = 1000;   // เพดานต่อ request ของ FMC
 const CHUNK    = 100;    // object ต่อ 1 bulk request — เล็กกว่าเพดานเพื่อจำกัดความเสียหายเวลา rollback
 const DELAY    = 250;    // หน่วงระหว่าง request — FMC จำกัด 120 req/min
@@ -148,7 +148,7 @@ function pickFiles() {
       '<div style="color:#94a3b8;margin-bottom:14px">เลือกทีเดียวได้ทั้ง 2 ไฟล์ (กด Ctrl ค้าง)</div>' +
       '<div style="margin-bottom:6px">1. Time Range — <code>.json</code></div>' +
       '<div style="margin-bottom:14px;color:#94a3b8">2. Mapping rule↔time — <code>.csv</code> (ไม่ใส่ก็ได้ = สร้าง object อย่างเดียว ไม่ผูก rule)</div>' +
-      '<input type="file" multiple accept=".json,.csv,.txt" style="margin-bottom:16px">' +
+      '<input type="file" multiple style="margin-bottom:16px">' +
       '<div style="display:flex;gap:8px"><button data-go style="flex:1;padding:8px;border:0;border-radius:6px;' +
       'background:#0ea5e9;color:#fff;font-weight:700;cursor:pointer">ต่อไป</button>' +
       '<button data-x style="padding:8px 14px;border:1px solid #334155;border-radius:6px;background:#1e293b;' +
@@ -229,9 +229,26 @@ function pickCol(row, cands) {
 let files;
 try { files = await pickFiles(); } catch (e) { return bad(e.message); }
 
-const jsonName = Object.keys(files).find(n => /\.json$/i.test(n));
-const csvName  = Object.keys(files).find(n => /\.csv$/i.test(n));
-if (!jsonName) return bad('ไม่พบไฟล์ .json ของ Time Range');
+// แยกประเภทไฟล์จาก "เนื้อใน" ไม่ใช่นามสกุล — ผู้ใช้อาจตั้งชื่อไฟล์เอง หรือ export
+// ออกมาเป็น .txt และ Windows ก็ซ่อนนามสกุลให้เป็นค่าเริ่มต้น ถ้าดูแต่นามสกุลจะตก
+// ทันทีโดยที่ผู้ใช้ไม่รู้ว่าตกเพราะอะไร
+const names = Object.keys(files);
+log('ไฟล์ที่เลือกมา: ' + names.map(n => n + ' (' + Math.round(files[n].length / 1024) + ' KB)').join(', '));
+
+const looksJSON = t => /^\s*[[{]/.test(t.replace(/^﻿/, ''));
+const looksCSV  = t => /[,;]/.test((t.replace(/^﻿/, '').split('\n')[0] || ''));
+
+const jsonName = names.find(n => /\.json$/i.test(n) && looksJSON(files[n]))
+              || names.find(n => looksJSON(files[n]));
+const csvName  = names.find(n => n !== jsonName && /\.csv$/i.test(n))
+              || names.find(n => n !== jsonName && looksCSV(files[n]));
+
+if (!jsonName) {
+  bad('หาไฟล์ Time Range ไม่เจอ — ไฟล์ที่เลือกมาไม่มีอันไหนขึ้นต้นด้วย { หรือ [');
+  names.forEach(n => console.log('   • ' + n + ' → ขึ้นต้นด้วย: ' +
+    JSON.stringify(files[n].replace(/^﻿/, '').slice(0, 60))));
+  return bad('ต้องเลือกไฟล์ JSON ของ Time Range ด้วย (เช่น timeranges_ALL.json)');
+}
 
 let trList;
 try { trList = parseObjects(files[jsonName]); }
