@@ -91,10 +91,48 @@ ok('help modal ยังเปิดได้', $('help-overlay').classList.cont
 window.toggleHelp(false);
 ok('help modal ยังปิดได้', !$('help-overlay').classList.contains('open'));
 
+console.log('\n=== Report HTML ===');
+// ยัดผลเปรียบเทียบปลอมเข้าไปแล้วเรียก exportReport จริง — เทสว่าไฟล์ที่ผู้ใช้ได้
+// หน้าตาถูกต้อง ไม่ใช่แค่ว่าฟังก์ชันมีอยู่
+// RES ประกาศด้วย const จึงอยู่ใน global lexical scope ไม่ใช่ property ของ window
+// ต้องยัดค่าผ่าน window.eval ถึงจะเห็นตัวเดียวกับที่ exportReport ใช้
+const FAKE = {
+  policy: [
+    { status:'ok', cp:{num:1,name:'Rule_#1',action:'accept',src:['A'],dst:['B'],svc:['s'],time:[]}, fmc:{num:1,action:'ALLOW',time:[]}, diffs:[] },
+    { status:'mismatch', cp:{num:8,name:'Rule_#8',action:'accept',src:['10.1.1.1'],dst:['10.2.0.0/24'],svc:['tcp_443'],time:['E311226']},
+      fmc:{num:8,action:'ALLOW',time:[]}, diffs:[{f:'Time',cv:'E311226',fv:'(ไม่มี)',severe:true}] },
+    { status:'missing', cp:{num:148,name:'Rule_#148',action:'accept',src:['X'],dst:['Y'],svc:['z'],time:[]}, fmc:null, diffs:[] },
+    { status:'extra', cp:null, fmc:{num:900,name:'Rule_#900',action:'ALLOW',time:[]}, diffs:[], orderBad:true },
+  ],
+  objects: [{ status:'missing', cp:{name:'H_1',type:'host',value:'10.0.0.1'}, fmc:null, diffs:[] }],
+};
+window.eval('RES.policy = ' + JSON.stringify(FAKE.policy) + '; RES.objects = ' + JSON.stringify(FAKE.objects) + ';');
+let repName = null, repBody = null;
+window.dlFile = (n, c) => { repName = n; repBody = c; };
+window.exportReport();
+ok('ตั้งชื่อไฟล์ตามวันที่', /^compare_report_\d{4}-\d{2}-\d{2}\.html$/.test(repName || ''));
+ok('เป็น HTML เต็มไฟล์ เปิดเองได้', /^<!DOCTYPE html>/.test(repBody || '') && repBody.trim().endsWith('</html>'));
+const rep = new JSDOM(repBody).window.document;
+ok('มีทั้ง section ที่เปรียบเทียบแล้ว ไม่ใช่เฉพาะแท็บที่เปิดอยู่',
+   /Security Policy/.test(repBody) && /Network Objects/.test(repBody));
+ok('ไม่มี NAT ที่ยังไม่ได้เปรียบเทียบ', !/NAT Policy/.test(repBody));
+ok('เตือนเรื่อง Time หายไว้บนสุด', /ผูกตารางเวลาไว้ แต่ฝั่ง FMC ไม่มี/.test(repBody));
+ok('นับ rule ที่ Time หายถูก (1 rule)', /พบ 1 rule/.test(repBody));
+ok('ตาราง Time ที่หายมีต้นทางปลายทางให้ดู', /10\.1\.1\.1/.test(repBody) && /10\.2\.0\.0\//.test(repBody));
+ok('การ์ดสรุปนับรวมทุก section', rep.querySelectorAll('.card').length === 6);
+const secTbl = [...rep.querySelectorAll('table')].find(x => /Section/.test(x.rows[0].textContent));
+ok('ตารางสรุปมี 1 แถวต่อ 1 section', !!secTbl && secTbl.rows.length === 3);
+ok('ตารางรายละเอียด policy ครบ 4 แถว + หัวตาราง',
+   [...rep.querySelectorAll('table')].some(x => x.rows.length === 5 && /ชื่อ Rule/.test(x.rows[0].textContent)));
+ok('สถานะแสดงเป็น badge มีสี', rep.querySelectorAll('.st-missing').length === 2);
+ok('มี CSS สำหรับสั่งพิมพ์เป็น PDF', /@media print/.test(repBody));
+ok('escape ค่าจากไฟล์ลูกค้า ไม่ยิง HTML ดิบ', !/<script/i.test(repBody.slice(repBody.indexOf('<body>'))));
+window.eval('RES.policy = []; RES.objects = [];');
+
 console.log('\n=== ฟังก์ชันหลักยังอยู่ครบ ===');
 ['runCmp', 'markOrder', 'mergeFmcPolicy', 'reconcilePolicy', 'mergeSplitRules',
  'gotoSec', 'exportCSV', 'exportJSON', 'toggleDir', 'toggleExp', 'copyExpScript',
- 'toggleTR', 'copyTrScript', 'dlTrScript', 'copyToClip']
+ 'toggleTR', 'copyTrScript', 'dlTrScript', 'copyToClip', 'exportReport']
   .forEach(f => ok(f, typeof window[f] === 'function'));
 
 console.log(`\nรวม: ${pass} PASS, ${fail} FAIL`);

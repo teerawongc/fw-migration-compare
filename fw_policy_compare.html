@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.12.2</title>
+<title>FW Migration Comparator v3.13.0</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -279,6 +279,7 @@ body.light .stab.active { background: #fff; color: #1e3a5f; border-bottom-color:
 .tbtn:disabled { opacity: .35; cursor: not-allowed; }
 .tbtn-csv  { background: #064e3b; color: #6ee7b7; }
 .tbtn-json { background: #1e3a5f; color: #93c5fd; }
+.tbtn-rep  { background: #4a2d1a; color: #fcd34d; }
 .tbtn-miss { background: #064e3b; color: #6ee7b7; }
 
 /* ── Table ── */
@@ -453,7 +454,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.12.2</span>
+  <span id="ver">v3.13.0</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -1550,6 +1551,7 @@ log('ผลลัพธ์เต็มอยู่ใน window.TR_RESULT');
       <div id="tcnt"></div>
       <button class="tbtn tbtn-csv"  id="btn-csv"  onclick="exportCSV()"  disabled>⬇ CSV</button>
       <button class="tbtn tbtn-json" id="btn-json" onclick="exportJSON()" disabled>📋 Bulk JSON</button>
+      <button class="tbtn tbtn-rep"  id="btn-rep"  onclick="exportReport()" disabled>📄 Report</button>
     </div>
     <div id="result">
       <div id="placeholder">
@@ -1564,7 +1566,7 @@ log('ผลลัพธ์เต็มอยู่ใน window.TR_RESULT');
 
 <script>
 'use strict';
-const VER = 'v3.12.2';
+const VER = 'v3.13.0';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const CP  = { policy:[], nat:[], objects:[], services:[] };
@@ -2099,6 +2101,7 @@ function runCmp() {
   showTab('all');
   document.getElementById('btn-csv').disabled  = false;
   document.getElementById('btn-json').disabled = false;
+  document.getElementById('btn-rep').disabled  = false;
   document.getElementById('toolbar').style.display = 'flex';
 }
 
@@ -2761,6 +2764,163 @@ function dlFile(name, content, type) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content], { type }));
   a.download = name; a.click();
+}
+
+// ── Report แบบไฟล์เดียวจบ ─────────────────────────────────────────────────────
+// CSV ใช้เอาไปทำงานต่อ แต่เอาไปแนบอีเมลให้หัวหน้าหรือลูกค้าอ่านไม่ได้ — ต้องเปิด
+// ด้วย Excel แล้วยังต้องมาไล่ปรับความกว้างคอลัมน์เอง Report นี้จึงออกเป็น HTML
+// ไฟล์เดียวที่ดับเบิลคลิกเปิดอ่านได้ทันทีทุกเครื่อง และสั่งพิมพ์เป็น PDF ได้เลย
+// ครอบคลุมทั้ง 4 section ในครั้งเดียว ไม่ใช่เฉพาะแท็บที่เปิดอยู่แบบ CSV
+const SECN = { policy:'Security Policy', nat:'NAT Policy', objects:'Network Objects', services:'Service Objects' };
+
+function repCounts(res) {
+  const c = { ok:0, missing:0, mismatch:0, extra:0, review:0, order:0, severe:0 };
+  res.forEach(r => {
+    c[r.status] = (c[r.status] || 0) + 1;
+    if (r.orderBad) c.order++;
+    if ((r.diffs || []).some(d => d.severe)) c.severe++;
+  });
+  return c;
+}
+
+// แถวตารางของแต่ละ section — ใช้ชุดคอลัมน์เดียวกับ CSV เพื่อให้เทียบกันได้
+function repRows(sec, res) {
+  const j = a => (a || []).join('; ');
+  if (sec === 'policy') return {
+    w: [8, 4, 4, 16, 6, 12, 12, 10, 8, 8, 12],
+    head: ['สถานะ', 'CP #', 'FMC #', 'ชื่อ Rule', 'Action', 'CP Src', 'CP Dst', 'CP Svc', 'CP Time', 'FMC Time', 'ต่างตรงไหน'],
+    rows: res.map(r => [r.status, r.cp?.num ?? '', r.fmc ? ((r.fmc.parts||1) > 1 ? r.fmc.num + '-' + r.fmc.numMax : r.fmc.num) : '',
+      r.cp?.name || r.fmc?.name || '',
+      (r.cp?.action || r.fmc?.action || '').toUpperCase(),
+      j(r.cp?.src), j(r.cp?.dst), j(r.cp?.svc), j(r.cp?.time) || 'Any', j(r.fmc?.time) || 'Any',
+      (r.diffs || []).map(d => d.f).join(', ') + (r.orderBad ? ((r.diffs||[]).length ? ', ' : '') + 'Order' : '')]),
+  };
+  if (sec === 'nat') return {
+    w: [8, 5, 11, 16, 16, 16, 16, 12],
+    head: ['สถานะ', '#', 'ชนิด', 'Orig Src', 'Trans Src', 'Orig Dst', 'Trans Dst', 'ต่างตรงไหน'],
+    rows: res.map(r => [r.status, r.cp?.num ?? r.fmc?.num ?? '', r.cp?.natType || '', r.cp?.origSrc || '',
+      r.cp?.transSrc || '', r.cp?.origDst || '', r.cp?.transDst || '', (r.diffs||[]).map(d => d.f).join(', ')]),
+  };
+  const isObj = sec === 'objects';
+  return {
+    w: [8, 20, 9, 21, 9, 21, 12],
+    head: ['สถานะ', 'ชื่อ', 'CP Type', isObj ? 'CP Value' : 'CP Port', 'FMC Type', isObj ? 'FMC Value' : 'FMC Port', 'ต่างตรงไหน'],
+    rows: res.map(r => [r.status, r.cp?.name || r.fmc?.name || '', r.cp?.type || '',
+      (isObj ? r.cp?.value : r.cp?.port) || '', r.fmc?.type || '', (isObj ? r.fmc?.value : r.fmc?.port) || '',
+      (r.diffs||[]).map(d => d.f).join(', ')]),
+  };
+}
+
+function exportReport() {
+  const done = Object.keys(SECN).filter(s => (RES[s] || []).length);
+  if (!done.length) return;
+
+  const now = new Date();
+  const stamp = now.toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' });
+  const dir = document.getElementById('dir-a').textContent === 'CP' ? 'Check Point → Cisco FMC' : 'Cisco FMC → Check Point';
+  const opt = [
+    document.getElementById('o-mrg').checked ? 'รวม rule ที่ FMT แยก' : null,
+    document.getElementById('o-ord').checked ? 'ตรวจลำดับ rule' : null,
+    document.getElementById('o-tm')?.checked ? 'ตรวจ Time / ตารางเวลา' : null,
+  ].filter(Boolean).join(' · ') || 'ไม่ได้เปิดตัวเลือกเพิ่มเติม';
+
+  // การ์ดสรุปบนสุด — ตัวเลขชุดเดียวกับที่เห็นบนหน้าจอ ไม่ได้คำนวณใหม่คนละทาง
+  const all = {};
+  done.forEach(s => { all[s] = repCounts(RES[s]); });
+  const tot = k => done.reduce((a, s) => a + (all[s][k] || 0), 0);
+
+  const P = [];
+  P.push('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">');
+  P.push('<title>รายงานเปรียบเทียบ Firewall Policy — ' + esc(stamp) + '</title><style>');
+  P.push(`
+  *{box-sizing:border-box} body{font-family:"Segoe UI",system-ui,sans-serif;margin:0;padding:28px 32px;color:#1e293b;background:#fff;font-size:13px}
+  h1{font-size:21px;margin:0 0 4px;color:#0f2d5c} h2{font-size:15px;margin:26px 0 8px;color:#0f2d5c;border-bottom:2px solid #0f2d5c;padding-bottom:4px}
+  .sub{color:#64748b;margin-bottom:16px;font-size:12px}
+  .meta{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:18px;font-size:12px;line-height:1.9}
+  .meta b{color:#0f2d5c}
+  .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-bottom:8px}
+  .card{border:1px solid #e2e8f0;border-radius:6px;padding:9px 12px}
+  .card .n{font-size:21px;font-weight:800;line-height:1.1} .card .l{font-size:10.5px;color:#64748b;margin-top:2px}
+  .ok .n{color:#059669} .ms .n{color:#dc2626} .mm .n{color:#d97706} .ex .n{color:#7c3aed} .rv .n{color:#0284c7} .or .n{color:#db2777} .sv .n{color:#dc2626}
+  table{border-collapse:collapse;width:100%;margin-bottom:6px;font-size:10.5px;table-layout:fixed}
+  th{background:#0f2d5c;color:#fff;text-align:left;padding:5px 7px;font-weight:600;position:sticky;top:0}
+  td{border-bottom:1px solid #e9edf3;padding:4px 7px;vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+  tr:nth-child(even) td{background:#fafbfd}
+  .st{font-weight:800;font-size:9px;padding:1px 5px;border-radius:9px;display:inline-block;white-space:nowrap}
+  .st-ok{background:#d1fae5;color:#065f46} .st-missing{background:#fee2e2;color:#991b1b}
+  .st-mismatch{background:#fef3c7;color:#92400e} .st-extra{background:#ede9fe;color:#5b21b6}
+  .st-review{background:#e0f2fe;color:#075985} .st-skip{background:#f1f5f9;color:#475569}
+  .warn{background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #ea580c;border-radius:5px;padding:10px 14px;margin:10px 0;font-size:12px;line-height:1.8}
+  .warn b{color:#c2410c}
+  .foot{margin-top:26px;padding-top:10px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10.5px}
+  /* ตารางเทียบ policy มี 11 คอลัมน์ ถ้าพิมพ์แนวตั้งบน A4 คอลัมน์จะแคบจน
+     คำสั้นๆ อย่าง ACCEPT ถูกตัดกลางคำ จึงบังคับเป็นแนวนอนตอนสั่งพิมพ์ */
+  @page{size:A4 landscape;margin:10mm}
+  @media print{body{padding:0;font-size:10.5px} h1{font-size:18px} h2{font-size:13px;page-break-after:avoid}
+    tr{page-break-inside:avoid} th{position:static} table{font-size:9.5px}}
+  `);
+  P.push('</style></head><body>');
+
+  P.push('<h1>รายงานเปรียบเทียบ Firewall Policy</h1>');
+  P.push('<div class="sub">' + esc(dir) + ' · สร้างเมื่อ ' + esc(stamp) + ' · เครื่องมือเวอร์ชัน ' + esc(VER) + '</div>');
+  P.push('<div class="meta"><b>ทิศทางเปรียบเทียบ:</b> ' + esc(dir) +
+         '<br><b>Section ที่เปรียบเทียบ:</b> ' + done.map(s => esc(SECN[s])).join(' · ') +
+         '<br><b>ตัวเลือกที่เปิดใช้:</b> ' + esc(opt) + '</div>');
+
+  P.push('<h2>สรุปภาพรวม</h2>');
+  P.push('<div class="cards">' +
+    '<div class="card ok"><div class="n">' + tot('ok').toLocaleString() + '</div><div class="l">ตรงกัน</div></div>' +
+    '<div class="card ms"><div class="n">' + tot('missing').toLocaleString() + '</div><div class="l">ขาดหาย</div></div>' +
+    '<div class="card mm"><div class="n">' + tot('mismatch').toLocaleString() + '</div><div class="l">ไม่ตรงกัน</div></div>' +
+    '<div class="card ex"><div class="n">' + tot('extra').toLocaleString() + '</div><div class="l">เกินมา</div></div>' +
+    '<div class="card rv"><div class="n">' + tot('review').toLocaleString() + '</div><div class="l">ตรวจซ้ำ</div></div>' +
+    '<div class="card or"><div class="n">' + tot('order').toLocaleString() + '</div><div class="l">ลำดับผิด</div></div>' +
+    '</div>');
+
+  // Time หายเป็นประเด็นที่มองข้ามง่ายที่สุดเพราะ rule ยังดูปกติทุกอย่าง แต่ผลคือ
+  // rule ที่ควรหมดอายุกลายเป็นเปิดตลอดไป จึงยกขึ้นมาไว้บนสุดแยกจากตารางรวม
+  const sev = (RES.policy || []).filter(r => (r.diffs || []).some(d => d.severe));
+  if (sev.length) {
+    P.push('<div class="warn"><b>พบ ' + sev.length.toLocaleString() + ' rule ที่ฝั่ง Check Point ผูกตารางเวลาไว้ แต่ฝั่ง FMC ไม่มี</b><br>' +
+      'rule เหล่านี้ถูกออกแบบให้หมดอายุเอง เมื่อไม่มีตารางเวลากำกับจะเปิดใช้งานตลอดไป ' +
+      'ต้องสร้าง Time Range แล้วผูกกลับเข้ากับ rule ก่อนวัน Cutover</div>');
+    P.push('<table><colgroup><col style="width:9%"><col style="width:20%"><col style="width:12%"><col style="width:59%"></colgroup>' +
+      '<tr><th>CP #</th><th>ชื่อ Rule</th><th>CP Time</th><th>ต้นทาง → ปลายทาง</th></tr>');
+    sev.forEach(r => P.push('<tr><td>' + esc(String(r.cp?.num ?? '')) + '</td><td>' + esc(r.cp?.name || '') + '</td><td>' +
+      esc((r.cp?.time || []).join('; ')) + '</td><td>' + esc((r.cp?.src || []).join('; ')) + ' → ' +
+      esc((r.cp?.dst || []).join('; ')) + '</td></tr>'));
+    P.push('</table>');
+  }
+
+  P.push('<h2>สรุปแยกตาม Section</h2>');
+  P.push('<table><tr><th>Section</th><th>ทั้งหมด</th><th>ตรงกัน</th><th>ขาดหาย</th><th>ไม่ตรงกัน</th><th>เกินมา</th><th>ตรวจซ้ำ</th><th>ลำดับผิด</th></tr>');
+  done.forEach(s => {
+    const c = all[s];
+    P.push('<tr><td><b>' + esc(SECN[s]) + '</b></td><td>' + RES[s].length.toLocaleString() + '</td><td>' +
+      c.ok.toLocaleString() + '</td><td>' + c.missing.toLocaleString() + '</td><td>' + c.mismatch.toLocaleString() +
+      '</td><td>' + c.extra.toLocaleString() + '</td><td>' + c.review.toLocaleString() + '</td><td>' +
+      (s === 'policy' ? c.order.toLocaleString() : '—') + '</td></tr>');
+  });
+  P.push('</table>');
+
+  done.forEach(s => {
+    const { head, rows, w } = repRows(s, RES[s]);
+    P.push('<h2>' + esc(SECN[s]) + ' — ' + rows.length.toLocaleString() + ' รายการ</h2>');
+    P.push('<table><colgroup>' + w.map(x => '<col style="width:' + x + '%">').join('') + '</colgroup>' +
+           '<tr>' + head.map(x => '<th>' + esc(x) + '</th>').join('') + '</tr>');
+    rows.forEach(row => {
+      P.push('<tr><td><span class="st st-' + esc(row[0]) + '">' + esc(row[0]) + '</span></td>' +
+        row.slice(1).map(v => '<td>' + esc(String(v ?? '')) + '</td>').join('') + '</tr>');
+    });
+    P.push('</table>');
+  });
+
+  P.push('<div class="foot">สร้างโดย FW Migration Comparator ' + esc(VER) +
+         ' — เปิดไฟล์นี้ด้วยเบราว์เซอร์แล้วสั่งพิมพ์เพื่อบันทึกเป็น PDF ได้</div>');
+  P.push('</body></html>');
+
+  const ymd = new Date().toISOString().slice(0, 10);
+  dlFile('compare_report_' + ymd + '.html', P.join('\n'), 'text/html;charset=utf-8');
 }
 
 // ── Ready check ───────────────────────────────────────────────────────────────
