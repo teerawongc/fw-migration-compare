@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FW Migration Comparator v3.13.0</title>
+<title>FW Migration Comparator v3.14.0</title>
 <style>
 /* ── Variables ── */
 :root {
@@ -398,6 +398,34 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
 }
 #help-btn:hover { border-color: var(--fmc); }
 
+/* ── CP Drift ── */
+.dzone {
+  border: 2px dashed var(--bd); border-radius: 8px; padding: 18px 12px; text-align: center;
+  cursor: pointer; background: var(--bg3); margin-bottom: 8px; transition: border-color .15s;
+}
+.dzone:hover, .dzone.on { border-color: var(--cp); background: #1a2438; }
+.dz-list { max-height: 132px; overflow-y: auto; margin-bottom: 6px; }
+.dz-empty { color: var(--muted); font-size: 10.5px; padding: 6px 2px; }
+.dz-f {
+  display: flex; align-items: center; gap: 6px; font-size: 10.5px;
+  background: var(--bg); border: 1px solid var(--bd); border-radius: 4px;
+  padding: 4px 7px; margin-bottom: 4px;
+}
+.dz-f b { color: var(--txt); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-f span { margin-left: auto; color: var(--ok); white-space: nowrap; }
+.dz-f.err b { color: var(--err); }
+.dz-f.err span { color: var(--err); }
+.dz-clr {
+  width: 100%; background: var(--bg3); border: 1px solid var(--bd); color: var(--muted);
+  border-radius: 5px; padding: 5px; font-size: 10.5px; cursor: pointer;
+}
+.dz-clr:hover { border-color: var(--err); color: var(--err); }
+.st-add  { background: #064e3b; color: #6ee7b7; }
+.st-del  { background: #4c1d1d; color: #fca5a5; }
+.st-chg  { background: #4a2d1a; color: #fcd34d; }
+.st-same { background: #1e293b; color: #64748b; }
+.st-mv   { background: #3b1d4c; color: #d8b4fe; }
+
 /* ── FMC Export modal ── */
 #exp-btn {
   background: var(--bg3); border: 1px solid var(--bd); border-radius: 20px;
@@ -454,7 +482,7 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
   <span style="color:#4a5568;font-size:14px">→</span>
   <span class="badge bfmc">CISCO FMC</span>
   <h1>Migration Comparator</h1>
-  <span id="ver">v3.13.0</span>
+  <span id="ver">v3.14.0</span>
   <div id="hdr-right">
     <div class="hstat">Policy: <b id="h-policy">—</b></div>
     <div class="hstat">NAT: <b id="h-nat">—</b></div>
@@ -481,6 +509,10 @@ body.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
       <button id="help-close" onclick="toggleHelp(false)">✕</button>
     </div>
     <div id="help-body">
+
+      <h3>แท็บ CP เก่า ↔ CP ใหม่</h3>
+      <p>config ที่ป้อนให้ FMT คือภาพ ณ วันที่ export เท่านั้น ถ้าระหว่างรอ cutover มีคนแก้ rule หรือเพิ่ม object บน Check Point ต่อ ของบน FMC จะเก่ากว่าของจริงโดยไม่มีใครรู้ แท็บนี้เอา export <b>2 ช่วงเวลา</b> มาเทียบให้เห็นว่าอะไรเปลี่ยนไปบ้าง — ลากไฟล์ XML ชุดเก่าและชุดใหม่ลงคนละช่อง เลือกทีเดียวหลายไฟล์ได้ เครื่องมือแยกประเภทให้เองจากเนื้อในไฟล์</p>
+      <div class="warn-box">จับคู่ rule ด้วย <code>Rule_UUID</code> ไม่ใช่เลขลำดับ เพราะการแทรก rule ใหม่เพียง 1 ข้อจะดันเลขของ rule ข้างหลังทั้งหมด ถ้าจับด้วยเลขจะขึ้นว่าแก้ไขยกแผงทั้งที่ไม่มีใครแตะ — rule ที่ถูกดันจะติดธง <b>⇅ ลำดับ</b> แยกจากการแก้เนื้อ rule</div>
 
       <h3>ภาพรวม</h3>
       <p>เครื่องมือนี้เปรียบเทียบ Policy / NAT / Network Objects / Service Objects ระหว่าง <b style="color:var(--cp)">Check Point</b> (ต้นทาง) กับ <b style="color:var(--fmc)">Cisco FMC</b> (ปลายทาง) เพื่อหาว่ามีอะไร Match, Missing, Mismatch หรือ Extra บ้าง ก่อน/หลัง migrate</p>
@@ -1414,6 +1446,7 @@ log('ผลลัพธ์เต็มอยู่ใน window.TR_RESULT');
   <div class="stab"        data-sec="nat"    onclick="gotoSec('nat')">🔄 NAT Policy <span class="stab-cnt" id="sc-nat">—</span></div>
   <div class="stab"        data-sec="objects" onclick="gotoSec('objects')">🗂 Network Objects <span class="stab-cnt" id="sc-objects">—</span></div>
   <div class="stab"        data-sec="services" onclick="gotoSec('services')">⚙ Service Objects <span class="stab-cnt" id="sc-services">—</span></div>
+  <div class="stab"        data-sec="drift"   onclick="gotoSec('drift')">🕓 CP เก่า ↔ CP ใหม่ <span class="stab-cnt" id="sc-drift">—</span></div>
 </div>
 
 <!-- MAIN -->
@@ -1472,6 +1505,43 @@ log('ผลลัพธ์เต็มอยู่ใน window.TR_RESULT');
       <div class="uz-name">services.xml</div>
       <div class="uz-hint">SmartConsole → Manage Services → Export</div>
       <div class="uz-status" id="st-services"></div>
+    </div>
+  </div>
+
+  <!-- CP DRIFT PANEL -->
+  <div id="drift-panel" style="display:none">
+    <div class="lsec">
+      <div class="ltitle">① Check Point — ชุดเก่า (ก่อน)</div>
+      <div class="dzone" id="dz-old"
+           onclick="document.getElementById('fi-dold').click()"
+           ondragover="event.preventDefault();this.classList.add('on')"
+           ondragleave="this.classList.remove('on')"
+           ondrop="event.preventDefault();this.classList.remove('on');driftLoad('old',event.dataTransfer.files)">
+        <input type="file" id="fi-dold" accept=".xml" multiple style="display:none" onchange="driftLoad('old',this.files)">
+        <div class="uz-icon">📦</div>
+        <div class="uz-name">ลากไฟล์ XML ชุดเก่า</div>
+        <div class="uz-hint">Security_Policy / network_objects / services / NAT — เลือกพร้อมกันได้</div>
+      </div>
+      <div class="dz-list" id="dz-list-old"><div class="dz-empty">ยังไม่ได้เลือกไฟล์</div></div>
+      <button class="dz-clr" onclick="driftClear('old')">✕ ล้างชุดเก่า</button>
+    </div>
+    <div class="lsec">
+      <div class="ltitle">② Check Point — ชุดใหม่ (หลัง)</div>
+      <div class="dzone" id="dz-new"
+           onclick="document.getElementById('fi-dnew').click()"
+           ondragover="event.preventDefault();this.classList.add('on')"
+           ondragleave="this.classList.remove('on')"
+           ondrop="event.preventDefault();this.classList.remove('on');driftLoad('new',event.dataTransfer.files)">
+        <input type="file" id="fi-dnew" accept=".xml" multiple style="display:none" onchange="driftLoad('new',this.files)">
+        <div class="uz-icon">📦</div>
+        <div class="uz-name">ลากไฟล์ XML ชุดใหม่</div>
+        <div class="uz-hint">export ชุดเดียวกันจากวันที่ใหม่กว่า</div>
+      </div>
+      <div class="dz-list" id="dz-list-new"><div class="dz-empty">ยังไม่ได้เลือกไฟล์</div></div>
+      <button class="dz-clr" onclick="driftClear('new')">✕ ล้างชุดใหม่</button>
+    </div>
+    <div class="lsec">
+      <div class="warn-box" style="margin:0">จับคู่ rule ด้วย <code>Rule_UUID</code> ไม่ใช่เลขลำดับ — การแทรก rule ใหม่ 1 ข้อจะดันเลขของ rule ข้างหลังทั้งหมด ถ้าจับด้วยเลขจะขึ้นว่าแก้ไขยกแผงทั้งที่ไม่มีใครแตะ ส่วน object/service จับด้วยชื่อ</div>
     </div>
   </div>
 
@@ -1566,20 +1636,20 @@ log('ผลลัพธ์เต็มอยู่ใน window.TR_RESULT');
 
 <script>
 'use strict';
-const VER = 'v3.13.0';
+const VER = 'v3.14.0';
 
 // ── State ────────────────────────────────────────────────────────────────────
-const CP  = { policy:[], nat:[], objects:[], services:[] };
-const FMC = { policy:[], nat:[], objects:[], services:[] };
-const RES = { policy:[], nat:[], objects:[], services:[] };
-const FMC_FILES = { policy:[], nat:[], objects:[], services:[] };
+const CP  = { policy:[], nat:[], objects:[], services:[], drift:[] };
+const FMC = { policy:[], nat:[], objects:[], services:[], drift:[] };
+const RES = { policy:[], nat:[], objects:[], services:[], drift:[] };
+const FMC_FILES = { policy:[], nat:[], objects:[], services:[], drift:[] };
 
 let curSec = 'policy';
 let curTab = 'all';
 let dir    = 'cp2fmc';  // or 'fmc2cp'
 let openDetRow = -1;
 
-const SEC_NAMES = { policy:'Security Policy', nat:'NAT Policy', objects:'Network Objects', services:'Service Objects' };
+const SEC_NAMES = { policy:'Security Policy', nat:'NAT Policy', objects:'Network Objects', services:'Service Objects', drift:'CP เก่า ↔ CP ใหม่' };
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
@@ -1719,6 +1789,12 @@ function toggleDir() {
 function gotoSec(sec) {
   curSec = sec; openDetRow = -1;
   document.querySelectorAll('.stab').forEach(t => t.classList.toggle('active', t.dataset.sec === sec));
+  // แท็บ drift ใช้ไฟล์คนละชุดกับอีก 4 แท็บ (XML สองชุด ไม่ใช่ CP+FMC) จึงสลับ
+  // แผงซ้ายทั้งก้อนแทนที่จะยัดช่องอัปโหลดเพิ่มเข้าไปในแผงเดิม
+  const isD = sec === 'drift';
+  document.getElementById('drift-panel').style.display = isD ? 'block' : 'none';
+  document.querySelectorAll('#lpanel > .lsec').forEach(el => { el.style.display = isD ? 'none' : ''; });
+  if (isD) { driftRender(); }
   document.getElementById('fmc-lbl').textContent = SEC_NAMES[sec];
   renderFileList(sec);
   const badge = document.getElementById('fmc-badge');
@@ -1884,6 +1960,9 @@ function parsePolicy(xml) {
     if (!cn || cn.textContent !== 'security_rule') return;
     const numEl = rule.querySelector(':scope > Rule_Number'); if (!numEl) return;
     const get = sel => { const el = rule.querySelector(':scope > ' + sel); return el ? el.textContent.trim() : ''; };
+    // Rule_UUID ไม่เปลี่ยนแม้ rule จะถูกดันขึ้นลงจากการแทรก rule อื่น — ใช้เป็น key
+    // ตอนเทียบ config สองช่วงเวลา (แท็บ CP เก่า ↔ CP ใหม่)
+    const uuid = get('Rule_UUID');
     let action = '';
     rule.querySelectorAll('action type').forEach(t => { if (['accept','drop','reject'].includes(t.textContent.trim())) action = t.textContent.trim(); });
     const refs = sel => { const c = rule.querySelector(':scope > ' + sel); if (!c) return [];
@@ -1897,7 +1976,7 @@ function parsePolicy(xml) {
     const tmEl = rule.querySelector(':scope > time');
     const tm = tmEl ? [...tmEl.querySelectorAll('Name')].map(n => n.textContent.trim())
                         .filter(n => n && n.toLowerCase() !== 'any') : [];
-    rules.push({ num:parseInt(numEl.textContent), name:get('name')||get('n')||'', action, disabled:get('disabled')==='true',
+    rules.push({ num:parseInt(numEl.textContent), uuid, name:get('name')||get('n')||'', action, disabled:get('disabled')==='true',
       src:refs('src')||['Any'], dst:refs('dst')||['Any'], svc:refs('services')||['Any'],
       time: tm, comment:get('comments') });
   });
@@ -1969,6 +2048,7 @@ function parseServices(xml) {
 // ── Compare ───────────────────────────────────────────────────────────────────
 function runCmp() {
   const sec = curSec;
+  if (sec === 'drift') return runDrift();
   const inclDis = document.getElementById('o-dis').checked;
   const chkAct  = document.getElementById('o-act').checked;
   const chkSrc  = document.getElementById('o-src').checked;
@@ -2478,6 +2558,12 @@ function updateSummary() {
   document.getElementById('rn-mm').textContent   = cnt.mismatch.toLocaleString();
   document.getElementById('rn-ok').textContent   = cnt.ok.toLocaleString();
   document.getElementById('rn-ex').textContent   = cnt.extra.toLocaleString();
+  // แท็บ drift ใช้คำคนละชุด — Missing/Extra ในบริบทนี้คือ ถูกลบ/เพิ่มใหม่
+  const D = curSec === 'drift';
+  document.getElementById('lbl-miss').textContent  = D ? '✗ ถูกลบ' : (dir === 'cp2fmc' ? '✗ Missing FMC' : '✗ Missing CP');
+  document.getElementById('lbl-extra').textContent = D ? '+ เพิ่มใหม่' : (dir === 'cp2fmc' ? '+ Extra FMC' : '+ Extra CP');
+  document.getElementById('lbl-tab-ex').textContent = D ? 'เพิ่มใหม่' : (dir === 'cp2fmc' ? 'Extra FMC' : 'Extra CP');
+  if (D) document.getElementById('c-or').textContent = res.filter(r => r.moved).length.toLocaleString();
 }
 function updateSecBadge(sec, res) {
   const el = document.getElementById('sc-' + sec);
@@ -2522,7 +2608,30 @@ function renderTable() {
 
   let th = '', html = '';
 
-  if (sec === 'policy') {
+  if (sec === 'drift') {
+    // ป้ายสถานะใช้คำของงาน drift ไม่ใช่ Match/Missing ซึ่งชวนเข้าใจผิดว่าเทียบกับ FMC
+    const DB = { extra:'<span class="stbadge st-add">+ เพิ่มใหม่</span>', missing:'<span class="stbadge st-del">− ถูกลบ</span>',
+                 mismatch:'<span class="stbadge st-chg">✎ แก้ไข</span>', ok:'<span class="stbadge st-same">= เหมือนเดิม</span>' };
+    th = '<tr><th>สถานะ</th><th>ประเภท</th><th>เลข/ชื่อ</th><th>ชื่อ Rule</th><th>ก่อน</th><th>หลัง</th><th>ต่างตรงไหน</th></tr>';
+    html = rows.map((r,i) => {
+      const s = r.cp || r.fmc;
+      const isRule = r.kind === 'policy' || r.kind === 'nat';
+      const id = isRule ? ('#' + (r.seqNew ?? r.seqOld ?? s.num)) : (s.name || '');
+      const mv = r.moved ? `<span class="stbadge st-mv" title="เนื้อ rule ไม่เปลี่ยน แต่ถูกดันจากลำดับ ${r.seqOld} ไป ${r.seqNew} เพราะมี rule อื่นถูกแทรก/ลบ">⇅ ${r.seqOld}→${r.seqNew}</span>` : '';
+      const d0 = r.diffs[0];
+      const before = r.status === 'extra' ? '—' : (d0 ? d0.cv : (isRule ? (r.cp?.action||'').toUpperCase() : (r.cp?.value ?? r.cp?.port ?? '')));
+      const after  = r.status === 'missing' ? '—' : (d0 ? d0.fv : (isRule ? (r.fmc?.action||'').toUpperCase() : (r.fmc?.value ?? r.fmc?.port ?? '')));
+      return `<tr onclick="togDet(${i})"><td>${DB[r.status]||r.status}${mv}</td>
+        <td style="font-size:10px;color:var(--muted)">${DRIFT_KIND[r.kind]}</td>
+        <td style="font-family:monospace;font-size:10px;color:var(--cp);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(String(id))}</td>
+        <td style="color:#94a3b8;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.cp?.name || r.fmc?.name || '')}</td>
+        <td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(String(before))}">${esc(String(before))}</td>
+        <td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(String(after))}">${esc(String(after))}</td>
+        <td style="font-size:9px;color:var(--warn)">${r.diffs.map(d=>esc(d.f)).join(', ')}${r.moved?(r.diffs.length?', ':'')+'<span style="color:#d8b4fe">ลำดับ</span>':''}</td></tr>
+        <tr class="detail-row" id="det-${i}" style="display:none"><td colspan="7" style="padding:0">${driftDet(r)}</td></tr>`;
+    }).join('');
+  }
+  else if (sec === 'policy') {
     th = '<tr><th>Status</th><th title="เลข Rule ฝั่ง Check Point">CP #</th><th title="ตำแหน่งจริงใน FMC (ruleIndex)">FMC #</th><th>Name</th><th>CP Act</th><th>FMC Act</th><th>Source</th><th>Dest</th><th>Service</th><th>Diff</th></tr>';
     html = rows.map((r,i) => {
       const cp = r.cp, fm = r.fmc;
@@ -2687,6 +2796,21 @@ function togDet(i) {
 // ── Export ────────────────────────────────────────────────────────────────────
 function exportCSV() {
   const sec = curSec, res = RES[sec] || [];
+  if (sec === 'drift') {
+    const SM = { extra:'เพิ่มใหม่', missing:'ถูกลบ', mismatch:'แก้ไข', ok:'เหมือนเดิม' };
+    const head = ['สถานะ','ประเภท','เลข/ชื่อ','ชื่อ Rule','ลำดับเก่า','ลำดับใหม่','ต่างตรงไหน','ค่าก่อน','ค่าหลัง'];
+    const body = res.map(r => {
+      const s = r.cp || r.fmc, isRule = r.kind === 'policy' || r.kind === 'nat';
+      return [SM[r.status]||r.status, DRIFT_KIND[r.kind],
+        isRule ? ('#'+(r.seqNew ?? r.seqOld ?? s.num)) : (s.name||''),
+        r.cp?.name || r.fmc?.name || '', r.seqOld ?? '', r.seqNew ?? '',
+        r.diffs.map(d=>d.f).join(', ') + (r.moved ? (r.diffs.length?', ':'')+'ลำดับ' : ''),
+        r.diffs.map(d=>d.f+'='+d.cv).join(' | '),
+        r.diffs.map(d=>d.f+'='+d.fv).join(' | ')];
+    });
+    const csvD = [head, ...body].map(row => row.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    return dlFile('cp_drift.csv', '\ufeff' + csvD, 'text/csv;charset=utf-8');
+  }
   const H = { policy:['Status','CP_Seq','FMC_Seq','Order_OK','Order_Note','FMT_Parts','FMC_Rule_Names','Name','CP_Action','FMC_Action','CP_Src','CP_Dst','CP_Svc','FMC_Src','FMC_Dst','FMC_Svc','CP_Time','FMC_Time','Diff'],
               nat:    ['Status','#','CP_Type','CP_OrigSrc','CP_TransSrc','CP_OrigDst','CP_TransDst','Diff'],
               objects:['Status','Name','CP_Type','CP_Value','FMC_Type','FMC_Value','Diff'],
@@ -2771,7 +2895,7 @@ function dlFile(name, content, type) {
 // ด้วย Excel แล้วยังต้องมาไล่ปรับความกว้างคอลัมน์เอง Report นี้จึงออกเป็น HTML
 // ไฟล์เดียวที่ดับเบิลคลิกเปิดอ่านได้ทันทีทุกเครื่อง และสั่งพิมพ์เป็น PDF ได้เลย
 // ครอบคลุมทั้ง 4 section ในครั้งเดียว ไม่ใช่เฉพาะแท็บที่เปิดอยู่แบบ CSV
-const SECN = { policy:'Security Policy', nat:'NAT Policy', objects:'Network Objects', services:'Service Objects' };
+const SECN = { policy:'Security Policy', nat:'NAT Policy', objects:'Network Objects', services:'Service Objects', drift:'CP เก่า ↔ CP ใหม่' };
 
 function repCounts(res) {
   const c = { ok:0, missing:0, mismatch:0, extra:0, review:0, order:0, severe:0 };
@@ -2786,6 +2910,21 @@ function repCounts(res) {
 // แถวตารางของแต่ละ section — ใช้ชุดคอลัมน์เดียวกับ CSV เพื่อให้เทียบกันได้
 function repRows(sec, res) {
   const j = a => (a || []).join('; ');
+  if (sec === 'drift') {
+    const SM = { extra:'เพิ่มใหม่', missing:'ถูกลบ', mismatch:'แก้ไข', ok:'เหมือนเดิม' };
+    return {
+      w: [10, 8, 14, 14, 8, 8, 14, 24],
+      head: ['สถานะ', 'ประเภท', 'เลข/ชื่อ', 'ชื่อ Rule', 'ลำดับเก่า', 'ลำดับใหม่', 'ต่างตรงไหน', 'ก่อน → หลัง'],
+      rows: res.map(r => {
+        const s = r.cp || r.fmc, isRule = r.kind === 'policy' || r.kind === 'nat';
+        return [SM[r.status] || r.status, DRIFT_KIND[r.kind],
+          isRule ? ('#' + (r.seqNew ?? r.seqOld ?? s.num)) : (s.name || ''),
+          r.cp?.name || r.fmc?.name || '', r.seqOld ?? '', r.seqNew ?? '',
+          r.diffs.map(d => d.f).join(', ') + (r.moved ? (r.diffs.length ? ', ' : '') + 'ลำดับ' : ''),
+          r.diffs.map(d => d.f + ': ' + (d.cv || '(ว่าง)') + ' → ' + (d.fv || '(ว่าง)')).join(' | ')];
+      }),
+    };
+  }
   if (sec === 'policy') return {
     w: [8, 4, 4, 16, 6, 12, 12, 10, 8, 8, 12],
     head: ['สถานะ', 'CP #', 'FMC #', 'ชื่อ Rule', 'Action', 'CP Src', 'CP Dst', 'CP Svc', 'CP Time', 'FMC Time', 'ต่างตรงไหน'],
@@ -2850,6 +2989,8 @@ function exportReport() {
   .st-ok{background:#d1fae5;color:#065f46} .st-missing{background:#fee2e2;color:#991b1b}
   .st-mismatch{background:#fef3c7;color:#92400e} .st-extra{background:#ede9fe;color:#5b21b6}
   .st-review{background:#e0f2fe;color:#075985} .st-skip{background:#f1f5f9;color:#475569}
+  .st-เพิ่มใหม่{background:#d1fae5;color:#065f46} .st-ถูกลบ{background:#fee2e2;color:#991b1b}
+  .st-แก้ไข{background:#fef3c7;color:#92400e} .st-เหมือนเดิม{background:#f1f5f9;color:#475569}
   .warn{background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #ea580c;border-radius:5px;padding:10px 14px;margin:10px 0;font-size:12px;line-height:1.8}
   .warn b{color:#c2410c}
   .foot{margin-top:26px;padding-top:10px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10.5px}
@@ -2923,8 +3064,159 @@ function exportReport() {
   dlFile('compare_report_' + ymd + '.html', P.join('\n'), 'text/html;charset=utf-8');
 }
 
+// ── CP Drift: เทียบ config ของไฟร์วอลล์เครื่องเดียวกัน 2 ช่วงเวลา ─────────────
+// ใช้ตอนไหน: config ที่ป้อนให้ FMT คือภาพ ณ วันที่ export เท่านั้น ถ้าระหว่างรอ
+// cutover มีคนแก้ rule หรือเพิ่ม object บน Check Point ต่อ ของที่อยู่บน FMC จะเก่า
+// กว่าของจริงโดยไม่มีใครรู้ — แท็บนี้เอา export 2 ช่วงเวลามาเทียบให้เห็นว่าต่างตรงไหน
+//
+// จับคู่ rule ด้วย Rule_UUID ไม่ใช่เลขลำดับ เพราะการแทรก rule ใหม่ 1 ข้อทำให้เลข
+// ของ rule ที่เหลือทั้งหมดข้างหลังเลื่อนตาม ถ้าจับด้วยเลขจะขึ้นว่า "แก้ไข" ยกแผง
+// ทั้งที่ไม่มีใครแตะ ส่วน object/service จับด้วยชื่อเพราะไม่มี UUID ใน XML
+const DRIFT = { old: null, new: null };
+const DRIFT_KIND = { policy:'Rule', nat:'NAT', objects:'Object', services:'Service' };
+
+function driftDetect(xml) {
+  if (/<Class_Name>security_rule<\/Class_Name>/.test(xml)) return 'policy';
+  if (/<Class_Name>address_translation_rule<\/Class_Name>/.test(xml)) return 'nat';
+  if (/<network_object[ >]/.test(xml)) return 'objects';
+  if (/<Class_Name>(tcp|udp|icmp|other)_service<\/Class_Name>/.test(xml)) return 'services';
+  return null;
+}
+
+function driftLoad(side, files) {
+  const list = [...(files || [])].filter(f => /\.xml$/i.test(f.name));
+  if (!list.length) return;
+  const set = DRIFT[side] || (DRIFT[side] = { policy:[], nat:[], objects:[], services:[], files:[] });
+  let left = list.length;
+  list.forEach(f => {
+    const rd = new FileReader();
+    rd.onload = e => {
+      const xml = e.target.result;
+      const kind = driftDetect(xml);
+      try {
+        if (!kind) throw new Error('ไม่รู้ว่าเป็นไฟล์อะไร');
+        set[kind] = kind === 'policy' ? parsePolicy(xml) : kind === 'nat' ? parseNat(xml)
+                  : kind === 'objects' ? parseObjects(xml) : parseServices(xml);
+        set.files.push({ name: f.name, kind, n: set[kind].length });
+      } catch (err) {
+        set.files.push({ name: f.name, kind: null, err: err.message });
+      }
+      if (--left === 0) { driftRender(); checkReady(); }
+    };
+    rd.onerror = () => { set.files.push({ name: f.name, kind:null, err:'อ่านไฟล์ไม่ได้' }); if (--left === 0) { driftRender(); checkReady(); } };
+    rd.readAsText(f, 'ISO-8859-1');
+  });
+}
+
+function driftClear(side) { DRIFT[side] = null; RES.drift = []; driftRender(); resetRight(); checkReady(); }
+
+function driftRender() {
+  ['old','new'].forEach(side => {
+    const set = DRIFT[side], box = document.getElementById('dz-list-' + side);
+    if (!box) return;
+    if (!set || !set.files.length) { box.innerHTML = '<div class="dz-empty">ยังไม่ได้เลือกไฟล์</div>'; return; }
+    box.innerHTML = set.files.map(f => f.kind
+      ? `<div class="dz-f"><b>${esc(f.name)}</b><span>${DRIFT_KIND[f.kind]} · ${f.n.toLocaleString()}</span></div>`
+      : `<div class="dz-f err"><b>${esc(f.name)}</b><span>${esc(f.err || 'ข้าม')}</span></div>`).join('');
+  });
+}
+
+// เทียบทีละหมวด ใช้ตัวเทียบเดียวกันหมด ต่างกันแค่ key กับ field ที่เอามาดู
+function driftCmp(kind, oldArr, newArr, keyFn, fields) {
+  const res = [];
+  const O = new Map(), N = new Map();
+  (oldArr || []).forEach(r => O.set(keyFn(r), r));
+  (newArr || []).forEach(r => N.set(keyFn(r), r));
+  const j = v => Array.isArray(v) ? v.join('; ') : (v === undefined || v === null ? '' : String(v));
+  O.forEach((o, k) => {
+    const n = N.get(k);
+    if (!n) { res.push({ status:'missing', kind, cp:o, fmc:null, diffs:[] }); return; }
+    const diffs = [];
+    fields.forEach(f => {
+      const a = j(o[f.k]), b = j(n[f.k]);
+      if (a !== b) diffs.push({ f: f.label, cv: a, fv: b });
+    });
+    // ลำดับเปลี่ยนเก็บแยกจาก diffs เพราะไม่ใช่การแก้เนื้อ rule แค่ถูกดันจากการแทรก
+    const moved = (kind === 'policy' || kind === 'nat') && o.num !== n.num;
+    res.push({ status: diffs.length ? 'mismatch' : 'ok', kind, cp:o, fmc:n, diffs,
+               moved, seqOld:o.num, seqNew:n.num });
+  });
+  N.forEach((n, k) => { if (!O.has(k)) res.push({ status:'extra', kind, cp:null, fmc:n, diffs:[] }); });
+  return res;
+}
+
+function runDrift() {
+  const o = DRIFT.old, n = DRIFT.new;
+  if (!o || !n) return;
+  let res = [];
+  // rule ที่ไม่มี Rule_UUID (export เก่าบางรุ่นไม่ใส่มา) ถอยไปใช้เลขลำดับแทน
+  const rkey = r => r.uuid || ('#' + r.num);
+  res = res.concat(driftCmp('policy', o.policy, n.policy, rkey, [
+    { k:'name', label:'Name' }, { k:'action', label:'Action' }, { k:'disabled', label:'Enabled' },
+    { k:'src', label:'Source' }, { k:'dst', label:'Dest' }, { k:'svc', label:'Service' },
+    { k:'time', label:'Time' }, { k:'comment', label:'Comment' },
+  ]));
+  res = res.concat(driftCmp('nat', o.nat, n.nat, r => '#' + r.num, [
+    { k:'natType', label:'Type' }, { k:'origSrc', label:'OrigSrc' }, { k:'transSrc', label:'TransSrc' },
+    { k:'origDst', label:'OrigDst' }, { k:'transDst', label:'TransDst' },
+  ]));
+  res = res.concat(driftCmp('objects', o.objects, n.objects, r => r.name, [
+    { k:'type', label:'Type' }, { k:'value', label:'Value' },
+  ]));
+  res = res.concat(driftCmp('services', o.services, n.services, r => r.name, [
+    { k:'type', label:'Type' }, { k:'port', label:'Port' },
+  ]));
+  // เรียงให้ของที่เปลี่ยนขึ้นก่อน — เปิดมาต้องเห็นสิ่งที่ต้องทำทันที ไม่ใช่เลื่อนหาเอง
+  const rank = { extra:0, missing:1, mismatch:2, ok:3 };
+  res.sort((a,b) => (rank[a.status]-rank[b.status]) || (a.kind<b.kind?-1:1) || ((a.seqOld||0)-(b.seqOld||0)));
+  RES.drift = res;
+  updateSecBadge('drift', res);
+  updateSummary();
+  showTab('all');
+  document.getElementById('btn-csv').disabled = false;
+  document.getElementById('btn-rep').disabled = false;
+  document.getElementById('btn-json').disabled = true;
+  document.getElementById('toolbar').style.display = 'flex';
+}
+
+// แผงรายละเอียดตอนคลิกแถว — โชว์ค่าก่อน/หลังทุก field ที่เปลี่ยน ไม่ต้องเปิดไฟล์เทียบเอง
+function driftDet(r) {
+  const rowsHtml = r.diffs.map(d =>
+    `<tr><td style="color:var(--muted);white-space:nowrap;padding:3px 8px">${esc(d.f)}</td>
+     <td style="color:#fca5a5;padding:3px 8px;word-break:break-all">${esc(d.cv) || '<i style="color:#475569">(ว่าง)</i>'}</td>
+     <td style="color:#6ee7b7;padding:3px 8px;word-break:break-all">${esc(d.fv) || '<i style="color:#475569">(ว่าง)</i>'}</td></tr>`).join('');
+  const mv = r.moved ? `<tr><td style="color:var(--muted);padding:3px 8px">ลำดับ</td>
+     <td style="color:#fca5a5;padding:3px 8px">${r.seqOld}</td><td style="color:#6ee7b7;padding:3px 8px">${r.seqNew}</td></tr>` : '';
+  const uid = r.cp?.uuid || r.fmc?.uuid;
+  if (!rowsHtml && !mv) return `<div style="padding:8px 12px;color:var(--muted);font-size:10.5px">ไม่มีการเปลี่ยนแปลง${uid?' · UUID '+esc(uid):''}</div>`;
+  return `<div style="padding:8px 12px">
+    <table style="width:100%;font-size:10.5px;border-collapse:collapse">
+      <tr><th style="text-align:left;padding:3px 8px;color:var(--muted);font-weight:600">Field</th>
+          <th style="text-align:left;padding:3px 8px;color:#fca5a5;font-weight:600">ก่อน</th>
+          <th style="text-align:left;padding:3px 8px;color:#6ee7b7;font-weight:600">หลัง</th></tr>
+      ${rowsHtml}${mv}
+    </table>
+    ${uid ? '<div style="margin-top:6px;color:#475569;font-size:9.5px;font-family:monospace">Rule_UUID ' + esc(uid) + '</div>' : ''}
+  </div>`;
+}
+
+function driftRows(res) {
+  const K = { policy:'Rule', nat:'NAT', objects:'Object', services:'Service' };
+  return res.map(r => {
+    const s = r.cp || r.fmc;
+    const id = (r.kind === 'policy' || r.kind === 'nat')
+      ? '#' + (r.seqNew ?? r.seqOld ?? s.num) : s.name;
+    return { r, kindLabel:K[r.kind], id, name:(r.cp?.name || r.fmc?.name || '') };
+  });
+}
+
 // ── Ready check ───────────────────────────────────────────────────────────────
 function checkReady() {
+  if (curSec === 'drift') {
+    const ok = !!(DRIFT.old && DRIFT.new);
+    document.getElementById('btn-run').disabled = !ok;
+    return;
+  }
   const hasCp  = CP[curSec].length > 0;
   const hasFmc = FMC[curSec].length > 0;
   document.getElementById('btn-run').disabled = !(hasCp && hasFmc);

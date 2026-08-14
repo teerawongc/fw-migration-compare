@@ -129,10 +129,91 @@ ok('มี CSS สำหรับสั่งพิมพ์เป็น PDF', /
 ok('escape ค่าจากไฟล์ลูกค้า ไม่ยิง HTML ดิบ', !/<script/i.test(repBody.slice(repBody.indexOf('<body>'))));
 window.eval('RES.policy = []; RES.objects = [];');
 
+console.log('\n=== CP Drift (แท็บ CP เก่า ↔ CP ใหม่) ===');
+// สร้าง XML จำลองที่คุมทุกตัวแปรได้ ดีกว่าใช้ไฟล์จริงตรงที่รู้คำตอบล่วงหน้า
+const mkRule = (uuid, num, o = {}) => `<rule><Name></Name> <Class_Name>security_rule</Class_Name>` +
+  `<Rule_UUID>{${uuid}}</Rule_UUID><Rule_Number>${num}</Rule_Number>` +
+  `<action><action><Name>${o.act || 'accept'}</Name> <Class_Name>${o.act || 'accept'}_action</Class_Name>` +
+  `<type><![CDATA[${o.act || 'accept'}]]></type></action></action>` +
+  `<comments><![CDATA[${o.cmt || ''}]]></comments><disabled>${o.dis ? 'true' : 'false'}</disabled>` +
+  `<name><![CDATA[${o.nm || ''}]]></name>` +
+  `<src><Name></Name> <Class_Name>rule_source</Class_Name><members>` +
+  (o.src || ['NetA']).map(x => `<reference><Name>${x}</Name><Table>network_objects</Table></reference>`).join('') +
+  `</members></src>` +
+  `<dst><Name></Name> <Class_Name>rule_destination</Class_Name><members>` +
+  `<reference><Name>${o.dst || 'NetB'}</Name><Table>network_objects</Table></reference></members></dst>` +
+  `<services><Name></Name> <Class_Name>rule_services</Class_Name><members>` +
+  `<reference><Name>${o.svc || 'http'}</Name><Table>services</Table></reference></members></services>` +
+  (o.time ? `<time><Name>${o.time}</Name><Table>times</Table></time>` : '') +
+  `</rule>`;
+const wrap = rs => `<?xml version="1.0"?><rules>${rs.join('')}</rules>`;
+
+const oldXml = wrap([
+  mkRule('U1', 1, { nm:'keep' }),
+  mkRule('U2', 2, { nm:'willChange', act:'accept' }),
+  mkRule('U3', 3, { nm:'willDelete' }),
+  mkRule('U4', 4, { nm:'willMove' }),
+]);
+const newXml = wrap([
+  mkRule('U1', 1, { nm:'keep' }),
+  mkRule('U2', 2, { nm:'willChange', act:'drop', src:['NetA','NetC'] }),
+  mkRule('U9', 3, { nm:'brandNew' }),
+  mkRule('U4', 4, { nm:'willMove' }),
+]);
+window.eval(`
+  DRIFT.old = { policy: parsePolicy(${JSON.stringify(oldXml)}), nat:[], objects:[
+      {name:'Obj_same',type:'host',value:'10.0.0.1'},
+      {name:'Obj_gone',type:'host',value:'10.0.0.2'},
+      {name:'Obj_chg', type:'host',value:'10.0.0.3'}],
+    services:[{name:'svc_same',type:'tcp',port:'80'}], files:[] };
+  DRIFT.new = { policy: parsePolicy(${JSON.stringify(newXml)}), nat:[], objects:[
+      {name:'Obj_same',type:'host',value:'10.0.0.1'},
+      {name:'Obj_chg', type:'host',value:'10.0.0.99'},
+      {name:'Obj_new', type:'network',value:'10.9.0.0/24'}],
+    services:[{name:'svc_same',type:'tcp',port:'80'}], files:[] };
+  curSec='drift'; runDrift();
+`);
+const dres = window.eval('RES.drift');
+const byName = n => dres.find(r => (r.cp?.name || r.fmc?.name) === n);
+const cD = {}; dres.forEach(r => cD[r.status] = (cD[r.status]||0)+1);
+ok('อ่าน Rule_UUID จาก XML ได้', window.eval("DRIFT.old.policy[0].uuid") === '{U1}');
+// policy: keep=ok, willChange=แก้, willDelete=ลบ, willMove=ok, brandNew=เพิ่ม
+// objects: same=ok, chg=แก้, gone=ลบ, new=เพิ่ม | services: same=ok
+ok(`นับสถานะถูก (${JSON.stringify(cD)})`, cD.extra === 2 && cD.missing === 2 && cD.mismatch === 2 && cD.ok === 4);
+ok('rule ที่ไม่แตะ = เหมือนเดิม', byName('keep').status === 'ok');
+ok('rule ที่ลบ = ถูกลบ', byName('willDelete').status === 'missing');
+ok('rule ที่เพิ่ม = เพิ่มใหม่', byName('brandNew').status === 'extra');
+const chg = byName('willChange');
+ok('rule ที่แก้ = แก้ไข', chg.status === 'mismatch');
+ok('จับได้ว่า Action เปลี่ยน accept→drop',
+   chg.diffs.some(d => d.f === 'Action' && d.cv === 'accept' && d.fv === 'drop'));
+ok('จับได้ว่า Source เพิ่ม NetC', chg.diffs.some(d => d.f === 'Source' && d.fv === 'NetA; NetC'));
+ok('rule ที่เลขไม่เปลี่ยน ไม่ติดธงลำดับ', !byName('willMove').moved);
+ok('object ที่ค่าเปลี่ยน = แก้ไข', byName('Obj_chg').status === 'mismatch');
+ok('object ที่หายไป = ถูกลบ', byName('Obj_gone').status === 'missing');
+ok('object ใหม่ = เพิ่มใหม่', byName('Obj_new').status === 'extra');
+ok('เรียงของที่เปลี่ยนขึ้นก่อน', dres[0].status !== 'ok' && dres[dres.length-1].status === 'ok');
+// การแทรก rule ทำให้เลขของ rule ข้างหลังเลื่อน — ต้องรายงานเป็น "ลำดับ" ไม่ใช่ "แก้ไข"
+window.eval(`
+  DRIFT.new.policy = parsePolicy(${JSON.stringify(wrap([mkRule('U1',1,{nm:'keep'}), mkRule('U9',2,{nm:'inserted'}), mkRule('U2',3,{nm:'willChange'}), mkRule('U4',4,{nm:'willMove'})]))});
+  runDrift();`);
+const d2 = window.eval('RES.drift');
+const moved = d2.filter(r => r.moved);
+ok(`rule ที่ถูกดันจากการแทรก ติดธงลำดับ (${moved.length} rule)`, moved.length === 1 && moved[0].cp.name === 'willChange');
+ok('ธงลำดับไม่ทำให้กลายเป็นแก้ไข', moved[0].status === 'ok' && moved[0].seqOld === 2 && moved[0].seqNew === 3);
+// CSV
+let cName=null, cBody=null;
+window.dlFile = (n,c) => { cName=n; cBody=c; };
+window.exportCSV();
+ok('export CSV ของ drift', cName === 'cp_drift.csv' && /"สถานะ","ประเภท"/.test(cBody) && /"ลำดับเก่า"/.test(cBody));
+ok('CSV มีทุกแถวรวมหัวตาราง', cBody.split('\n').length === d2.length + 1);
+window.eval('DRIFT.old=null; DRIFT.new=null; RES.drift=[]; curSec="policy";');
+
 console.log('\n=== ฟังก์ชันหลักยังอยู่ครบ ===');
 ['runCmp', 'markOrder', 'mergeFmcPolicy', 'reconcilePolicy', 'mergeSplitRules',
  'gotoSec', 'exportCSV', 'exportJSON', 'toggleDir', 'toggleExp', 'copyExpScript',
- 'toggleTR', 'copyTrScript', 'dlTrScript', 'copyToClip', 'exportReport']
+ 'toggleTR', 'copyTrScript', 'dlTrScript', 'copyToClip', 'exportReport',
+ 'driftLoad', 'driftClear', 'runDrift', 'driftDetect', 'driftDet']
   .forEach(f => ok(f, typeof window[f] === 'function'));
 
 console.log(`\nรวม: ${pass} PASS, ${fail} FAIL`);

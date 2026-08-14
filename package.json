@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "FW Migration Comparator — CP vs FMC",
   "scripts": {
-    "test": "node test/logic.test.mjs && node test/ui.test.mjs",
+    "test": "node test/logic.test.mjs && node test/ui.test.mjs && node test/drift.test.mjs",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "tail": "wrangler tail"
